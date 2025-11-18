@@ -23,6 +23,9 @@
                     echo $this->Form->control('item_master_id', ['options' => $itemMasters]);
                     echo $this->Form->control('item_master_version');
                     echo $this->Form->control('ordem');
+                    echo $this->Form->control('metodologia');
+                    echo $this->Form->control('rigor_tecnico');
+                    echo $this->Form->control('acao_imediata');
                     echo $this->Form->control('required');
                     echo $this->Form->control('notes');
                     echo $this->Form->control('created_at');

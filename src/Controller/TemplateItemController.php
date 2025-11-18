@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Controller\AppController;
+use Cake\Datasource\Exception\RecordNotFoundException;
+use Cake\ORM\TableRegistry; // ESSENCIAL: Adicionar a importação do TableRegistry
+
 /**
  * TemplateItem Controller
  *
@@ -10,96 +14,119 @@ namespace App\Controller;
  */
 class TemplateItemController extends AppController
 {
-    /**
-     * Index method
-     *
-     * @return \Cake\Http\Response|null|void Renders view
-     */
+    public function initialize(): void
+    {
+        parent::initialize();
+        $this->loadComponent('Flash');
+        
+        // Carrega explicitamente a tabela Singular
+        $this->TemplateItem = $this->fetchTable('TemplateItem');
+    }
+
     public function index()
     {
+        // Usa o Alias Singular definido no Table
         $query = $this->TemplateItem->find()
-            ->contain(['ChecklistTemplateVersions', 'ItemMasters']);
-        $templateItem = $this->paginate($query);
+            ->contain(['ChecklistTemplate', 'ItemMaster']); // Aliases corretos
+
+        $settings = [
+            'limit' => 25,
+        ];
+
+        $templateItem = $this->paginate($query, $settings);
 
         $this->set(compact('templateItem'));
     }
 
-    /**
-     * View method
-     *
-     * @param string|null $id Template Item id.
-     * @return \Cake\Http\Response|null|void Renders view
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function view($id = null)
+    public function view(string $id = null)
     {
-        $templateItem = $this->TemplateItem->get($id, contain: ['ChecklistTemplateVersions', 'ItemMasters', 'InspectionItem']);
+        if (!$id) {
+            throw new RecordNotFoundException('Template item id is required');
+        }
+
+        // Usa o Alias Singular
+        $templateItem = $this->TemplateItem->get($id, [
+            'contain' => ['ChecklistTemplate', 'ItemMaster', 'InspectionItem'], // Aliases corretos
+        ]);
+
         $this->set(compact('templateItem'));
     }
 
-    /**
-     * Add method
-     *
-     * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
-     */
     public function add()
     {
         $templateItem = $this->TemplateItem->newEmptyEntity();
+
         if ($this->request->is('post')) {
             $templateItem = $this->TemplateItem->patchEntity($templateItem, $this->request->getData());
+
             if ($this->TemplateItem->save($templateItem)) {
                 $this->Flash->success(__('The template item has been saved.'));
-
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The template item could not be saved. Please, try again.'));
+            $this->Flash->error(__('Unable to save template item. Try again.'));
         }
-        $checklistTemplateVersions = $this->TemplateItem->ChecklistTemplateVersions->find('list', limit: 200)->all();
-        $itemMasters = $this->TemplateItem->ItemMasters->find('list', limit: 200)->all();
-        $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters'));
+
+        // CORREÇÃO CRÍTICA: Carregar as Tabelas via TableRegistry para garantir o find('list')
+        // Isso resolve o erro de "Undefined property" e garante o carregamento
+        $checklistTemplateTable = TableRegistry::getTableLocator()->get('ChecklistTemplate');
+        $itemMasterTable = TableRegistry::getTableLocator()->get('ItemMaster');
+
+        // Busca as listas usando os Aliases corretos
+        $checklistTemplateVersions = $checklistTemplateTable->find('list')->toArray();
+        $itemMasters = $itemMasterTable->find('list')->toArray();
+
+        // Envia para a View com os nomes das variáveis esperados pelo add.php
+        $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters')); 
     }
 
-    /**
-     * Edit method
-     *
-     * @param string|null $id Template Item id.
-     * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function edit($id = null)
+    public function edit(string $id = null)
     {
-        $templateItem = $this->TemplateItem->get($id, contain: []);
+        if (!$id) {
+            throw new RecordNotFoundException('Template item id is required');
+        }
+
+        $templateItem = $this->TemplateItem->get($id, [
+            'contain' => [],
+        ]);
+
         if ($this->request->is(['patch', 'post', 'put'])) {
             $templateItem = $this->TemplateItem->patchEntity($templateItem, $this->request->getData());
+
             if ($this->TemplateItem->save($templateItem)) {
                 $this->Flash->success(__('The template item has been saved.'));
-
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The template item could not be saved. Please, try again.'));
+            $this->Flash->error(__('Unable to save template item.'));
         }
-        $checklistTemplateVersions = $this->TemplateItem->ChecklistTemplateVersions->find('list', limit: 200)->all();
-        $itemMasters = $this->TemplateItem->ItemMasters->find('list', limit: 200)->all();
+
+        // CORREÇÃO CRÍTICA: Carregar as Tabelas via TableRegistry
+        $checklistTemplateTable = TableRegistry::getTableLocator()->get('ChecklistTemplate');
+        $itemMasterTable = TableRegistry::getTableLocator()->get('ItemMaster');
+
+        $checklistTemplateVersions = $checklistTemplateTable->find('list')->toArray();
+        $itemMasters = $itemMasterTable->find('list')->toArray();
+
+        // Envia para a View com os nomes das variáveis esperados
         $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters'));
     }
 
-    /**
-     * Delete method
-     *
-     * @param string|null $id Template Item id.
-     * @return \Cake\Http\Response|null Redirects to index.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function delete($id = null)
+    public function delete(string $id = null)
     {
         $this->request->allowMethod(['post', 'delete']);
-        $templateItem = $this->TemplateItem->get($id);
-        if ($this->TemplateItem->delete($templateItem)) {
-            $this->Flash->success(__('The template item has been deleted.'));
-        } else {
-            $this->Flash->error(__('The template item could not be deleted. Please, try again.'));
+        if (!$id) {
+            $this->Flash->error(__('Template item id is required.'));
+            return $this->redirect(['action' => 'index']);
         }
-
+        try {
+            $templateItem = $this->TemplateItem->get($id);
+            if ($this->TemplateItem->delete($templateItem)) {
+                $this->Flash->success(__('Template item deleted.'));
+            } else {
+                $this->Flash->error(__('Unable to delete template item.'));
+            }
+        } catch (RecordNotFoundException $e) {
+            $this->Flash->error(__('Template item not found.'));
+        }
         return $this->redirect(['action' => 'index']);
     }
 }

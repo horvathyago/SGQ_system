@@ -25,11 +25,14 @@ class TemplateItemFixture extends TestFixture
     {
         $this->records = [
             [
-                'id' => '120fb57a-4b7a-43a8-9154-39d9745585af',
-                'checklist_template_version_id' => 'f1e71d4e-baa5-491e-98a6-0ef0fcb3989e',
-                'item_master_id' => 'f482682e-9f3f-479e-8b01-1cb2a56b8449',
+                'id' => '807e4157-eb0a-4604-97d7-0da0b481ba3e',
+                'checklist_template_version_id' => 'dccfdc46-b645-449f-8145-126bf050934e',
+                'item_master_id' => 'c6995cf7-fb78-41f0-a209-3296bff62453',
                 'item_master_version' => 1,
                 'ordem' => 1,
+                'metodologia' => 'Lorem ipsum dolor sit amet, aliquet feugiat. Convallis morbi fringilla gravida, phasellus feugiat dapibus velit nunc, pulvinar eget sollicitudin venenatis cum nullam, vivamus ut a sed, mollitia lectus. Nulla vestibulum massa neque ut et, id hendrerit sit, feugiat in taciti enim proin nibh, tempor dignissim, rhoncus duis vestibulum nunc mattis convallis.',
+                'rigor_tecnico' => 'Lorem ipsum dolor sit amet, aliquet feugiat. Convallis morbi fringilla gravida, phasellus feugiat dapibus velit nunc, pulvinar eget sollicitudin venenatis cum nullam, vivamus ut a sed, mollitia lectus. Nulla vestibulum massa neque ut et, id hendrerit sit, feugiat in taciti enim proin nibh, tempor dignissim, rhoncus duis vestibulum nunc mattis convallis.',
+                'acao_imediata' => 'Lorem ipsum dolor sit amet, aliquet feugiat. Convallis morbi fringilla gravida, phasellus feugiat dapibus velit nunc, pulvinar eget sollicitudin venenatis cum nullam, vivamus ut a sed, mollitia lectus. Nulla vestibulum massa neque ut et, id hendrerit sit, feugiat in taciti enim proin nibh, tempor dignissim, rhoncus duis vestibulum nunc mattis convallis.',
                 'required' => 1,
                 'notes' => 'Lorem ipsum dolor sit amet, aliquet feugiat. Convallis morbi fringilla gravida, phasellus feugiat dapibus velit nunc, pulvinar eget sollicitudin venenatis cum nullam, vivamus ut a sed, mollitia lectus. Nulla vestibulum massa neque ut et, id hendrerit sit, feugiat in taciti enim proin nibh, tempor dignissim, rhoncus duis vestibulum nunc mattis convallis.',
                 'created_at' => '',

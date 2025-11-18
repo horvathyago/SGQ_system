@@ -96,4 +96,5 @@ class UserAccountTable extends Table
 
         return $rules;
     }
+
 }

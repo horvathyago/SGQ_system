@@ -48,6 +48,24 @@
                 </tr>
             </table>
             <div class="text">
+                <strong><?= __('Metodologia') ?></strong>
+                <blockquote>
+                    <?= $this->Text->autoParagraph(h($templateItem->metodologia)); ?>
+                </blockquote>
+            </div>
+            <div class="text">
+                <strong><?= __('Rigor Tecnico') ?></strong>
+                <blockquote>
+                    <?= $this->Text->autoParagraph(h($templateItem->rigor_tecnico)); ?>
+                </blockquote>
+            </div>
+            <div class="text">
+                <strong><?= __('Acao Imediata') ?></strong>
+                <blockquote>
+                    <?= $this->Text->autoParagraph(h($templateItem->acao_imediata)); ?>
+                </blockquote>
+            </div>
+            <div class="text">
                 <strong><?= __('Notes') ?></strong>
                 <blockquote>
                     <?= $this->Text->autoParagraph(h($templateItem->notes)); ?>
