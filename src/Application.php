@@ -1,19 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
- * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
- *
- * Licensed under The MIT License
- * For full copyright and license information, please see the LICENSE.txt
- * Redistributions of files must retain the above copyright notice.
- *
- * @copyright Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
- * @link      https://cakephp.org CakePHP(tm) Project
- * @since     3.3.0
- * @license   https://opensource.org/licenses/mit-license.php MIT License
- */
 namespace App;
 
 use Cake\Core\Configure;
@@ -28,78 +15,86 @@ use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 
-/**
- * Application setup class.
- *
- * This defines the bootstrapping logic and middleware layers you
- * want to use in your application.
- *
- * @extends \Cake\Http\BaseApplication<\App\Application>
- */
-class Application extends BaseApplication
+use Authentication\AuthenticationService;
+use Authentication\AuthenticationServiceInterface;
+use Authentication\AuthenticationServiceProviderInterface;
+use Authentication\Middleware\AuthenticationMiddleware;
+use Authentication\PasswordHasher\DefaultPasswordHasher;
+use Psr\Http\Message\ServerRequestInterface;
+
+class Application extends BaseApplication implements AuthenticationServiceProviderInterface
 {
-    /**
-     * Load all the application configuration and bootstrap logic.
-     *
-     * @return void
-     */
     public function bootstrap(): void
     {
-        // Call parent to load bootstrap from files.
         parent::bootstrap();
 
         if (PHP_SAPI !== 'cli') {
-            // The bake plugin requires fallback table classes to work properly
             FactoryLocator::add('Table', (new TableLocator())->allowFallbackClass(false));
         }
     }
 
-    /**
-     * Setup the middleware queue your application will use.
-     *
-     * @param \Cake\Http\MiddlewareQueue $middlewareQueue The middleware queue to setup.
-     * @return \Cake\Http\MiddlewareQueue The updated middleware queue.
-     */
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
+        // Error handler / asset / routing
         $middlewareQueue
-            // Catch any exceptions in the lower layers,
-            // and make an error page/response
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
-
-            // Handle plugin/theme assets like CakePHP normally does.
             ->add(new AssetMiddleware([
                 'cacheTime' => Configure::read('Asset.cacheTime'),
             ]))
+            ->add(new RoutingMiddleware($this));
 
-            // Add routing middleware.
-            // If you have a large number of routes connected, turning on routes
-            // caching in production could improve performance.
-            // See https://github.com/CakeDC/cakephp-cached-routing
-            ->add(new RoutingMiddleware($this))
+        // --- Authentication deve vir ANTES do CSRF e BodyParser ---
+        $middlewareQueue->add(new AuthenticationMiddleware($this));
 
-            // Parse various types of encoded request bodies so that they are
-            // available as array through $request->getData()
-            // https://book.cakephp.org/5/en/controllers/middleware.html#body-parser-middleware
-            ->add(new BodyParserMiddleware())
+        // Corpo das requisições (JSON/form-data)
+        $middlewareQueue->add(new BodyParserMiddleware());
 
-            // Cross Site Request Forgery (CSRF) Protection Middleware
-            // https://book.cakephp.org/5/en/security/csrf.html#cross-site-request-forgery-csrf-middleware
-            ->add(new CsrfProtectionMiddleware([
-                'httponly' => true,
-            ]));
+        // Proteção CSRF (depois de Authentication)
+        $middlewareQueue->add(new CsrfProtectionMiddleware([
+            'httponly' => true,
+        ]));
 
         return $middlewareQueue;
     }
 
     /**
-     * Register application container services.
-     *
-     * @param \Cake\Core\ContainerInterface $container The Container to update.
-     * @return void
-     * @link https://book.cakephp.org/5/en/development/dependency-injection.html#dependency-injection
+     * Configuração do AuthenticationService
      */
+    public function getAuthenticationService(ServerRequestInterface $request): AuthenticationServiceInterface
+    {
+        $service = new AuthenticationService([
+            'unauthenticatedRedirect' => '/login/login',
+            'queryParam' => 'redirect',
+        ]);
+
+        // IDENTIFICADOR (verifica usuário no banco)
+        $service->loadIdentifier('Authentication.Password', [
+            'fields' => [
+                'username' => 'email',
+                // <-- usar password_hash pois esse é o campo do seu banco
+                'password' => 'password_hash',
+            ],
+            'resolver' => [
+                'className' => 'Authentication.Orm',
+                'model' => 'UserAccount',   // nome do Model (sem 'Table')
+            ],
+            'passwordHasher' => DefaultPasswordHasher::class,
+        ]);
+
+        // AUTENTICADOR (pega dados do formulário)
+        $service->loadAuthenticator('Authentication.Form', [
+            'fields' => [
+                'username' => 'email',
+                'password' => 'password',  // campo enviado no form
+            ],
+            'loginUrl' => '/login/login',
+        ]);
+
+        return $service;
+    }
+
     public function services(ContainerInterface $container): void
     {
+        // Mantido vazio
     }
 }

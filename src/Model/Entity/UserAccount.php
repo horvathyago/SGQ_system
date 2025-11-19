@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Entity;
 
 use Cake\ORM\Entity;
+use Authentication\PasswordHasher\DefaultPasswordHasher;
 
 /**
  * UserAccount Entity
@@ -35,4 +36,16 @@ class UserAccount extends Entity
         'created_at' => true,
         'updated_at' => true,
     ];
+
+    protected function _setPasswordHash($password) // Mude o nome da variável para $password, é mais claro
+    {
+        // 1. Verifica se a senha está sendo definida
+        if (strlen($password) > 0) {
+            // 2. CORREÇÃO: Usa o nome da classe correta: DefaultPasswordHasher (sem 'ff')
+            // O namespace completo não é necessário porque você o importou no topo.
+            return (new DefaultPasswordHasher())->hash($password);
+        }
+        // Retorna null ou uma string vazia se a senha não for fornecida e não for obrigatória
+        return null; 
+    }
 }
