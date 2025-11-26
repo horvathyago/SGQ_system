@@ -11,7 +11,7 @@ use Cake\ORM\Entity;
 class TemplateItem extends Entity
 {
     protected array $_accessible = [
-        'checklist_template_version_id' => true,
+        'checklist_template_id' => true,
         'item_master_id' => true,
         'item_master_version' => true,
         'ordem' => true,

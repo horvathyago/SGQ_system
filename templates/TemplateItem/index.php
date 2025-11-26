@@ -6,14 +6,15 @@
 ?>
 <div class="templateItem index content">
     <?= $this->Html->link(__('New Template Item'), ['action' => 'add'], ['class' => 'button float-right']) ?>
-    <h3><?= __('Template Item') ?></h3>
+    <h3><?= __('Template Items') ?></h3>
+
     <div class="table-responsive">
         <table>
             <thead>
                 <tr>
                     <th><?= $this->Paginator->sort('id') ?></th>
-                    <th><?= $this->Paginator->sort('checklist_template_version_id') ?></th>
-                    <th><?= $this->Paginator->sort('item_master_id') ?></th>
+                    <th><?= __('Checklist Template') ?></th>
+                    <th><?= __('Item Master') ?></th>
                     <th><?= $this->Paginator->sort('item_master_version') ?></th>
                     <th><?= $this->Paginator->sort('ordem') ?></th>
                     <th><?= $this->Paginator->sort('required') ?></th>
@@ -21,33 +22,55 @@
                     <th class="actions"><?= __('Actions') ?></th>
                 </tr>
             </thead>
+
             <tbody>
-                <?php foreach ($templateItem as $templateItem): ?>
+                <?php foreach ($templateItem as $item): ?>
                 <tr>
-                    <td><?= h($templateItem->id) ?></td>
-                    <td><?= $templateItem->hasValue('checklist_template_version') ? $this->Html->link($templateItem->checklist_template_version->id, ['controller' => 'ChecklistTemplateVersions', 'action' => 'view', $templateItem->checklist_template_version->id]) : '' ?></td>
-                    <td><?= $templateItem->hasValue('item_master') ? $this->Html->link($templateItem->item_master->codigo_item, ['controller' => 'ItemMaster', 'action' => 'view', $templateItem->item_master->id]) : '' ?></td>
-                    <td><?= $templateItem->item_master_version === null ? '' : $this->Number->format($templateItem->item_master_version) ?></td>
-                    <td><?= $this->Number->format($templateItem->ordem) ?></td>
-                    <td><?= h($templateItem->required) ?></td>
-                    <td><?= h($templateItem->created_at) ?></td>
+                    <td><?= h($item->id) ?></td>
+
+                    <!-- CHECKLIST TEMPLATE -->
+                    <td>
+                        <?php if ($item->checklist_template): ?>
+                            <?= $this->Html->link(
+                                h($item->checklist_template->name),
+                                ['controller' => 'ChecklistTemplate', 'action' => 'view', $item->checklist_template->id]
+                            ) ?>
+                        <?php endif; ?>
+                    </td>
+
+                    <!-- ITEM MASTER -->
+                    <td>
+                        <?php if ($item->item_master): ?>
+                            <?= $this->Html->link(
+                                h($item->item_master->name ?? $item->item_master->title ?? '[sem nome]'),
+                                ['controller' => 'ItemMaster', 'action' => 'view', $item->item_master->id]
+                            ) ?>
+                        <?php endif; ?>
+                    </td>
+
+                    <td><?= $item->item_master_version === null ? '' : h($item->item_master_version) ?></td>
+                    <td><?= h($item->ordem) ?></td>
+                    <td><?= $item->required ? __('Yes') : __('No') ?></td>
+                    <td><?= h($item->created_at) ?></td>
+
                     <td class="actions">
-                        <?= $this->Html->link(__('View'), ['action' => 'view', $templateItem->id]) ?>
-                        <?= $this->Html->link(__('Edit'), ['action' => 'edit', $templateItem->id]) ?>
+                        <?= $this->Html->link(__('View'), ['action' => 'view', $item->id]) ?>
+                        <?= $this->Html->link(__('Edit'), ['action' => 'edit', $item->id]) ?>
                         <?= $this->Form->postLink(
                             __('Delete'),
-                            ['action' => 'delete', $templateItem->id],
+                            ['action' => 'delete', $item->id],
                             [
-                                'method' => 'delete',
-                                'confirm' => __('Are you sure you want to delete # {0}?', $templateItem->id),
+                                'confirm' => __('Are you sure you want to delete # {0}?', $item->id),
                             ]
                         ) ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
+
         </table>
     </div>
+
     <div class="paginator">
         <ul class="pagination">
             <?= $this->Paginator->first('<< ' . __('first')) ?>
@@ -56,6 +79,7 @@
             <?= $this->Paginator->next(__('next') . ' >') ?>
             <?= $this->Paginator->last(__('last') . ' >>') ?>
         </ul>
-        <p><?= $this->Paginator->counter(__('Page {{page}} of {{pages}}, showing {{current}} record(s) out of {{count}} total')) ?></p>
+
+        <p><?= $this->Paginator->counter(__('Page {{page}} of {{pages}}, showing {{current}} of {{count}} total')) ?></p>
     </div>
 </div>

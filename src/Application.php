@@ -62,39 +62,32 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
      */
     public function getAuthenticationService(ServerRequestInterface $request): AuthenticationServiceInterface
     {
-        $service = new AuthenticationService([
-            'unauthenticatedRedirect' => '/login/login',
+        $authenticationService = new AuthenticationService([
+            'unauthenticatedRedirect' => '/useraccount/login',
             'queryParam' => 'redirect',
         ]);
 
-        // IDENTIFICADOR (verifica usuário no banco)
-        $service->loadIdentifier('Authentication.Password', [
+        $authenticationService->loadIdentifier('Authentication.Password', [
             'fields' => [
                 'username' => 'email',
-                // <-- usar password_hash pois esse é o campo do seu banco
                 'password' => 'password_hash',
             ],
             'resolver' => [
                 'className' => 'Authentication.Orm',
-                'model' => 'UserAccount',   // nome do Model (sem 'Table')
+                'userModel' => 'Useraccount', // <-- CORRIGIDO
             ],
-            'passwordHasher' => DefaultPasswordHasher::class,
         ]);
 
-        // AUTENTICADOR (pega dados do formulário)
-        $service->loadAuthenticator('Authentication.Form', [
+        $authenticationService->loadAuthenticator('Authentication.Session');
+
+        $authenticationService->loadAuthenticator('Authentication.Form', [
             'fields' => [
                 'username' => 'email',
-                'password' => 'password',  // campo enviado no form
+                'password' => 'password_hash',
             ],
-            'loginUrl' => '/login/login',
+            'loginUrl' => '/useraccount/login',
         ]);
 
-        return $service;
-    }
-
-    public function services(ContainerInterface $container): void
-    {
-        // Mantido vazio
+        return $authenticationService;
     }
 }

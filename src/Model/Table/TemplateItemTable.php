@@ -13,10 +13,9 @@ class TemplateItemTable extends Table
     {
         parent::initialize($config);
 
-        // Força tabela singular no banco
         $this->setTable('template_item');
         $this->setPrimaryKey('id');
-        $this->setDisplayField('id'); // Dica: Mude 'id' para um campo mais legível se houver (ex: 'nome')
+        $this->setDisplayField('id');
 
         $this->addBehavior('Timestamp', [
             'events' => [
@@ -26,25 +25,16 @@ class TemplateItemTable extends Table
             ]
         ]);
 
-        // --- CORREÇÃO DEFINITIVA DA ASSOCIAÇÃO ---
-        // Alias: 'ChecklistTemplate' (Singular, para usar no Controller)
-        // className: 'ChecklistTemplate' (Procura por ChecklistTemplateTable.php)
-        // foreignKey: 'checklist_template_version_id' (O campo real no seu banco)
         $this->belongsTo('ChecklistTemplate', [
-            'className' => 'ChecklistTemplate', 
-            'foreignKey' => 'checklist_template_version_id',
-            'joinType' => 'LEFT',
+            'className' => 'ChecklistTemplate',
+            'foreignKey' => 'checklist_template_id',
+            'joinType' => 'INNER'
         ]);
 
-        // Mesma lógica para ItemMaster
         $this->belongsTo('ItemMaster', [
             'className' => 'ItemMaster',
             'foreignKey' => 'item_master_id',
-            'joinType' => 'LEFT',
-        ]);
-
-        $this->hasMany('InspectionItem', [
-            'foreignKey' => 'template_item_id',
+            'joinType' => 'INNER'
         ]);
     }
 
@@ -52,24 +42,27 @@ class TemplateItemTable extends Table
     {
         $validator
             ->uuid('id')
-            ->allowEmptyString('id', null, 'create');
+            ->allowEmptyString('id', 'create');
 
         $validator
-            ->scalar('checklist_template_version_id')
-            ->maxLength('checklist_template_version_id', 36)
-            ->notEmptyString('checklist_template_version_id');
+            ->uuid('checklist_template_id', 'Formato inválido de UUID')
+            ->requirePresence('checklist_template_id', 'create')
+            ->notEmptyString('checklist_template_id', 'Checklist Template é obrigatório');
 
         $validator
-            ->scalar('item_master_id')
-            ->maxLength('item_master_id', 36)
-            ->notEmptyString('item_master_id');
+            ->uuid('item_master_id', 'Formato inválido de UUID')
+            ->requirePresence('item_master_id', 'create')
+            ->notEmptyString('item_master_id', 'Item Master é obrigatório');
 
         $validator
             ->integer('ordem')
-            ->greaterThanOrEqual('ordem', 0)
-            ->notEmptyString('ordem');
+            ->requirePresence('ordem', 'create')
+            ->notEmptyString('ordem', 'Informe a ordem do item.');
 
-        $validator->boolean('acao_imediata')->allowEmptyString('acao_imediata');
+        $validator->allowEmptyString('item_master_version');
+        $validator->allowEmptyString('metodologia');
+        $validator->allowEmptyString('rigor_tecnico');
+        $validator->allowEmptyString('acao_imediata');
         $validator->boolean('required')->allowEmptyString('required');
         $validator->allowEmptyString('notes');
 
@@ -78,9 +71,8 @@ class TemplateItemTable extends Table
 
     public function buildRules(RulesChecker $rules): RulesChecker
     {
-        // Usa o Alias definido no initialize ('ChecklistTemplate')
-        $rules->add($rules->existsIn(['checklist_template_version_id'], 'ChecklistTemplate'), ['errorField' => 'checklist_template_version_id']);
-        $rules->add($rules->existsIn(['item_master_id'], 'ItemMaster'), ['errorField' => 'item_master_id']);
+        $rules->add($rules->existsIn(['checklist_template_id'], 'ChecklistTemplate'), ['errorField' => 'checklist_template_id', 'message' => 'Checklist template inválido.']);
+        $rules->add($rules->existsIn(['item_master_id'], 'ItemMaster'), ['errorField' => 'item_master_id', 'message' => 'Item master inválido.']);
 
         return $rules;
     }

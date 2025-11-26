@@ -1,38 +1,38 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var array $authFields Variáveis que o Authentication passa implicitamente (email/password)
+ * @var array $authFields
  */
 ?>
+
+<?php $this->assign('title', 'Acesso ao Sistema'); ?>
+
 <div class="row">
     <div class="column column-40 column-offset-30">
         <div class="users form content">
-            
+
             <?= $this->Form->create() ?>
             <fieldset>
                 <legend><?= __('Acesso ao Sistema') ?></legend>
-                
+
                 <?php
-                    // Assumindo que seu campo de login é 'email'
-                    // O FormHelper injeta o nome da coluna correto no POST.
                     echo $this->Form->control('email', [
                         'required' => true,
-                        'label' => 'E-mail de Acesso', // Rótulo em português
+                        'label' => 'E-mail de Acesso',
                         'type' => 'email'
                     ]);
-                    
-                    // O campo 'password'
-                    echo $this->Form->control('password', [
+
+                    echo $this->Form->control('password_hash', [
                         'required' => true,
                         'label' => 'Senha',
                         'type' => 'password'
                     ]);
                 ?>
             </fieldset>
-            
+
             <?= $this->Form->button(__('Entrar'), ['class' => 'button primary']) ?>
             <?= $this->Form->end() ?>
-            </p>
+
         </div>
     </div>
 </div>

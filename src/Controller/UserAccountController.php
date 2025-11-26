@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Event\EventInterface;
+
 /**
  * UserAccount Controller
  *
@@ -10,6 +12,22 @@ namespace App\Controller;
  */
 class UserAccountController extends AppController
 {
+
+    public function initialize(): void
+    {
+        parent::initialize();
+
+        // Carrega o componente corretamente
+        $this->loadComponent('Authentication.Authentication');
+    }
+
+    public function beforeFilter(\Cake\Event\EventInterface $event)
+    {
+        parent::beforeFilter($event);
+        // Permitir acesso às ações de 'login' e 'add' sem autenticação
+        $this->Authentication->allowUnauthenticated(array('logout', 'login'));
+    }
+
     /**
      * Index method
      *
@@ -97,4 +115,26 @@ class UserAccountController extends AppController
 
         return $this->redirect(['action' => 'index']);
     }
+
+    public function login()
+    {
+        $this->viewBuilder()->setTemplatePath('UserAccount')->setTemplate('login');
+        $this->request->allowMethod(['get', 'post']);
+        $result = $this->Authentication->getResult();
+        if($result->isValid()) {
+            $target = $this->Authentication->getLoginRedirect() ?? '/';
+            return $this->redirect($target);
+        }
+    
+        if($this->request->is('post') && !$result->isValid()) {
+            $this->Flash->bootstrap('usuario ou senha inválidos', array('key' => 'danger'));
+        }
+    }
+
+    public function logout()
+    {
+        $this->Authentication->logout();
+        $this->redirect('/login');
+    }
+    
 }

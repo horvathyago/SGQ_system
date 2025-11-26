@@ -5,11 +5,10 @@ namespace App\Controller;
 
 use App\Controller\AppController;
 use Cake\Datasource\Exception\RecordNotFoundException;
-use Cake\ORM\TableRegistry; // ESSENCIAL: Adicionar a importação do TableRegistry
+use Cake\ORM\TableRegistry;
+use Cake\I18n\FrozenTime;
 
 /**
- * TemplateItem Controller
- *
  * @property \App\Model\Table\TemplateItemTable $TemplateItem
  */
 class TemplateItemController extends AppController
@@ -18,35 +17,29 @@ class TemplateItemController extends AppController
     {
         parent::initialize();
         $this->loadComponent('Flash');
-        
-        // Carrega explicitamente a tabela Singular
+
+        // garante tipagem para IDEs
         $this->TemplateItem = $this->fetchTable('TemplateItem');
     }
 
     public function index()
     {
-        // Usa o Alias Singular definido no Table
         $query = $this->TemplateItem->find()
-            ->contain(['ChecklistTemplate', 'ItemMaster']); // Aliases corretos
+            ->contain(['ChecklistTemplate', 'ItemMaster'])
+            ->order(['TemplateItem.ordem' => 'ASC']);
 
-        $settings = [
-            'limit' => 25,
-        ];
-
-        $templateItem = $this->paginate($query, $settings);
-
+        $templateItem = $this->paginate($query, ['limit' => 25]);
         $this->set(compact('templateItem'));
     }
 
     public function view(string $id = null)
     {
         if (!$id) {
-            throw new RecordNotFoundException('Template item id is required');
+            throw new RecordNotFoundException('ID é obrigatório.');
         }
 
-        // Usa o Alias Singular
         $templateItem = $this->TemplateItem->get($id, [
-            'contain' => ['ChecklistTemplate', 'ItemMaster', 'InspectionItem'], // Aliases corretos
+            'contain' => ['ChecklistTemplate', 'ItemMaster', 'InspectionItem'],
         ]);
 
         $this->set(compact('templateItem'));
@@ -57,76 +50,141 @@ class TemplateItemController extends AppController
         $templateItem = $this->TemplateItem->newEmptyEntity();
 
         if ($this->request->is('post')) {
-            $templateItem = $this->TemplateItem->patchEntity($templateItem, $this->request->getData());
+            $data = $this->request->getData();
 
+            // created_at: se não vier, gera automaticamente
+            if (empty($data['created_at'])) {
+                $data['created_at'] = FrozenTime::now();
+            }
+
+            $templateItem = $this->TemplateItem->patchEntity($templateItem, $data);
+
+            // Se validation/buildRules falharem, $templateItem terá erros
             if ($this->TemplateItem->save($templateItem)) {
-                $this->Flash->success(__('The template item has been saved.'));
+                $this->Flash->success('Template item salvo com sucesso.');
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('Unable to save template item. Try again.'));
+
+            // Mostra mensagens de validação (útil para debugging)
+            $errors = $templateItem->getErrors();
+            if (!empty($errors)) {
+                $this->Flash->error('Erro ao salvar: ' . json_encode($errors));
+            } else {
+                $this->Flash->error('Erro desconhecido ao salvar template item.');
+            }
         }
 
-        // CORREÇÃO CRÍTICA: Carregar as Tabelas via TableRegistry para garantir o find('list')
-        // Isso resolve o erro de "Undefined property" e garante o carregamento
+        // Carrega listas para a view: as chaves e nomes corretos
         $checklistTemplateTable = TableRegistry::getTableLocator()->get('ChecklistTemplate');
         $itemMasterTable = TableRegistry::getTableLocator()->get('ItemMaster');
 
-        // Busca as listas usando os Aliases corretos
-        $checklistTemplateVersions = $checklistTemplateTable->find('list')->toArray();
-        $itemMasters = $itemMasterTable->find('list')->toArray();
+        // Detecta o campo de exibição (valueField) para cada tabela de forma segura:
+        $checklistDisplay = $this->_detectDisplayField($checklistTemplateTable, ['name', 'title', 'descricao']);
+        $itemMasterDisplay = $this->_detectDisplayField($itemMasterTable, ['title', 'name', 'nome']);
 
-        // Envia para a View com os nomes das variáveis esperados pelo add.php
-        $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters')); 
+        $checklistTemplateVersions = $checklistTemplateTable->find('list', [
+            'keyField' => 'id',
+            'valueField' => $checklistDisplay
+        ])->toArray();
+
+        $itemMasters = $itemMasterTable->find('list', [
+            'keyField' => 'id',
+            'valueField' => $itemMasterDisplay
+        ])->toArray();
+
+        $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters'));
     }
 
     public function edit(string $id = null)
     {
         if (!$id) {
-            throw new RecordNotFoundException('Template item id is required');
+            throw new RecordNotFoundException('ID é obrigatório.');
         }
 
-        $templateItem = $this->TemplateItem->get($id, [
-            'contain' => [],
-        ]);
+        $templateItem = $this->TemplateItem->get($id);
 
         if ($this->request->is(['patch', 'post', 'put'])) {
-            $templateItem = $this->TemplateItem->patchEntity($templateItem, $this->request->getData());
+            $data = $this->request->getData();
+            $templateItem = $this->TemplateItem->patchEntity($templateItem, $data);
 
             if ($this->TemplateItem->save($templateItem)) {
-                $this->Flash->success(__('The template item has been saved.'));
+                $this->Flash->success('Template item atualizado com sucesso.');
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('Unable to save template item.'));
+
+            $errors = $templateItem->getErrors();
+            if (!empty($errors)) {
+                $this->Flash->error('Erro ao atualizar: ' . json_encode($errors));
+            } else {
+                $this->Flash->error('Erro desconhecido ao atualizar.');
+            }
         }
 
-        // CORREÇÃO CRÍTICA: Carregar as Tabelas via TableRegistry
+        // Reusar a lógica de carregamento de listas
         $checklistTemplateTable = TableRegistry::getTableLocator()->get('ChecklistTemplate');
         $itemMasterTable = TableRegistry::getTableLocator()->get('ItemMaster');
 
-        $checklistTemplateVersions = $checklistTemplateTable->find('list')->toArray();
-        $itemMasters = $itemMasterTable->find('list')->toArray();
+        $checklistDisplay = $this->_detectDisplayField($checklistTemplateTable, ['name', 'title', 'descricao']);
+        $itemMasterDisplay = $this->_detectDisplayField($itemMasterTable, ['title', 'name', 'nome']);
 
-        // Envia para a View com os nomes das variáveis esperados
+        $checklistTemplateVersions = $checklistTemplateTable->find('list', [
+            'keyField' => 'id',
+            'valueField' => $checklistDisplay
+        ])->toArray();
+
+        $itemMasters = $itemMasterTable->find('list', [
+            'keyField' => 'id',
+            'valueField' => $itemMasterDisplay
+        ])->toArray();
+
         $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters'));
     }
 
     public function delete(string $id = null)
     {
         $this->request->allowMethod(['post', 'delete']);
+
         if (!$id) {
-            $this->Flash->error(__('Template item id is required.'));
+            $this->Flash->error('ID é obrigatório.');
             return $this->redirect(['action' => 'index']);
         }
+
         try {
             $templateItem = $this->TemplateItem->get($id);
             if ($this->TemplateItem->delete($templateItem)) {
-                $this->Flash->success(__('Template item deleted.'));
+                $this->Flash->success('Template item removido.');
             } else {
-                $this->Flash->error(__('Unable to delete template item.'));
+                $this->Flash->error('Não foi possível remover o template item.');
             }
         } catch (RecordNotFoundException $e) {
-            $this->Flash->error(__('Template item not found.'));
+            $this->Flash->error('Template item não encontrado.');
         }
+
         return $this->redirect(['action' => 'index']);
+    }
+
+    /**
+     * Helper privado: detecta um campo de exibição disponível (valueField)
+     */
+    private function _detectDisplayField($table, array $candidates = [])
+    {
+        $schema = $table->getSchema();
+        $cols = $schema->columns();
+
+        foreach ($candidates as $c) {
+            if (in_array($c, $cols)) {
+                return $c;
+            }
+        }
+
+        // fallback: primeiro string/text column
+        foreach ($cols as $col) {
+            $type = $schema->getColumnType($col);
+            if ($type === 'string' || $type === 'text') {
+                return $col;
+            }
+        }
+
+        return 'id';
     }
 }
