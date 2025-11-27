@@ -61,18 +61,30 @@ class UserAccountController extends AppController
      */
     public function add()
     {
-        $userAccount = $this->UserAccount->newEmptyEntity();
-        if ($this->request->is('post')) {
-            $userAccount = $this->UserAccount->patchEntity($userAccount, $this->request->getData());
-            if ($this->UserAccount->save($userAccount)) {
-                $this->Flash->success(__('The user account has been saved.'));
+        // Carrega a tabela corretamente
+        $UserAccounts = $this->fetchTable('UserAccount');
 
+        // Cria nova entidade vazia
+        $userAccount = $UserAccounts->newEmptyEntity();
+
+        // Autoriza a ação
+        $this->Authorization->authorize($userAccount);
+
+        if ($this->request->is('post')) {
+            // Preenche com dados enviados
+            $userAccount = $UserAccounts->patchEntity($userAccount, $this->request->getData());
+
+            if ($UserAccounts->save($userAccount)) {
+                $this->Flash->success('Conta criada com sucesso.');
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The user account could not be saved. Please, try again.'));
+
+            $this->Flash->error('Erro ao criar conta. Verifique os dados e tente novamente.');
         }
+
         $this->set(compact('userAccount'));
     }
+
 
     /**
      * Edit method
@@ -118,6 +130,7 @@ class UserAccountController extends AppController
 
     public function login()
     {
+        $this->Authorization->skipAuthorization();
         $this->viewBuilder()->setTemplatePath('UserAccount')->setTemplate('login');
         $this->request->allowMethod(['get', 'post']);
         $result = $this->Authentication->getResult();
@@ -133,8 +146,9 @@ class UserAccountController extends AppController
 
     public function logout()
     {
+        $this->Authorization->skipAuthorization();
         $this->Authentication->logout();
-        $this->redirect('/login');
+        $this->redirect('/UserAccount/login');
     }
     
 }
