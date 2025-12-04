@@ -35,6 +35,7 @@ class ItemMasterController extends AppController
     public function add()
     {
         $itemMaster = $this->ItemMaster->newEmptyEntity();
+        $this->Authorization->authorize($itemMaster);
 
         if ($this->request->is('post')) {
 
@@ -54,6 +55,7 @@ class ItemMasterController extends AppController
     public function edit($id = null)
     {
         $itemMaster = $this->ItemMaster->get($id);
+        $this->Authorization->authorize($itemMaster);
 
         if ($this->request->is(['patch', 'post', 'put'])) {
 
@@ -103,6 +105,7 @@ class ItemMasterController extends AppController
         $this->request->allowMethod(['post', 'delete']);
 
         $itemMaster = $this->ItemMaster->get($id);
+        $this->Authorization->authorize($itemMaster);
 
         if ($this->ItemMaster->delete($itemMaster)) {
             $this->Flash->success('The item master has been deleted.');

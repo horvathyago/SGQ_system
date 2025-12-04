@@ -50,7 +50,19 @@ class UserAccountController extends AppController
      */
     public function view($id = null)
     {
+
         $userAccount = $this->UserAccount->get($id, contain: []);
+
+        $currentUser = $this->request->getAttribute('identity');
+
+        if ($currentUser && $currentUser->getIdentifier() === $userAccount->id) {
+            
+        } else {
+            
+            $this->Authorization->authorize($userAccount);
+        }
+
+        
         $this->set(compact('userAccount'));
     }
 
@@ -96,6 +108,7 @@ class UserAccountController extends AppController
     public function edit($id = null)
     {
         $userAccount = $this->UserAccount->get($id, contain: []);
+        $this->Authorization->authorize($userAccount);
         if ($this->request->is(['patch', 'post', 'put'])) {
             $userAccount = $this->UserAccount->patchEntity($userAccount, $this->request->getData());
             if ($this->UserAccount->save($userAccount)) {
@@ -117,8 +130,10 @@ class UserAccountController extends AppController
      */
     public function delete($id = null)
     {
+    
         $this->request->allowMethod(['post', 'delete']);
         $userAccount = $this->UserAccount->get($id);
+        $this->Authorization->authorize($userAccount);
         if ($this->UserAccount->delete($userAccount)) {
             $this->Flash->success(__('The user account has been deleted.'));
         } else {

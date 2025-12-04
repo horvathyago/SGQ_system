@@ -15,6 +15,15 @@ class GaugeController extends AppController
      *
      * @return \Cake\Http\Response|null|void Renders view
      */
+
+    public function initialize(): void
+    {
+        parent::initialize();
+
+        // Carrega o componente corretamente
+        $this->loadComponent('Authentication.Authentication');
+    }
+
     public function index()
     {
         $query = $this->Gauge->find();
@@ -22,6 +31,8 @@ class GaugeController extends AppController
 
         $this->set(compact('gauge'));
     }
+
+    
 
     /**
      * View method
@@ -44,6 +55,7 @@ class GaugeController extends AppController
     public function add()
     {
         $gauge = $this->Gauge->newEmptyEntity();
+        $this->Authorization->authorize($gauge);
         if ($this->request->is('post')) {
             $gauge = $this->Gauge->patchEntity($gauge, $this->request->getData());
             if ($this->Gauge->save($gauge)) {
@@ -66,6 +78,7 @@ class GaugeController extends AppController
     public function edit($id = null)
     {
         $gauge = $this->Gauge->get($id, contain: []);
+        $this->Authorization->authorize($gauge);
         if ($this->request->is(['patch', 'post', 'put'])) {
             $gauge = $this->Gauge->patchEntity($gauge, $this->request->getData());
             if ($this->Gauge->save($gauge)) {
@@ -89,6 +102,7 @@ class GaugeController extends AppController
     {
         $this->request->allowMethod(['post', 'delete']);
         $gauge = $this->Gauge->get($id);
+        $this->Authorization->authorize($gauge);
         if ($this->Gauge->delete($gauge)) {
             $this->Flash->success(__('The gauge has been deleted.'));
         } else {

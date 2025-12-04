@@ -32,6 +32,7 @@ class UserAccountPolicy
      */
     public function canEdit(IdentityInterface $user, UserAccount $userAccount)
     {
+        return $user->getOriginalData()->role === 'admin';
     }
 
     /**
@@ -43,6 +44,8 @@ class UserAccountPolicy
      */
     public function canDelete(IdentityInterface $user, UserAccount $userAccount)
     {
+        return $user->getOriginalData()->role === 'admin';
+
     }
 
     /**
@@ -54,5 +57,6 @@ class UserAccountPolicy
      */
     public function canView(IdentityInterface $user, UserAccount $userAccount)
     {
+        return $user->getOriginalData()->role === 'admin';
     }
 }
