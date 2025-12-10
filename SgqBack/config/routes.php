@@ -34,7 +34,7 @@ return function (RouteBuilder $routes): void {
         // Ele criará URLs no formato singular: /user-account.json, /user-account/1.json
         $builder->resources('UserAccount', [
             // O nome singular mapeia corretamente para UserAccountController
-            'only' => ['index', 'view', 'add', 'edit', 'delete'],
+            'only' => ['index', 'view', 'add', 'edit', 'delete', 'status'],
             'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
         ]);
         

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Controller;
@@ -28,10 +29,10 @@ class UserAccountController extends AppController
 
         // Carrega o componente de Autenticação
         $this->loadComponent('Authentication.Authentication');
-        
+
         // Define a view como JSON explicitamente
-        $this->viewBuilder()->setClassName('Json'); 
-        
+        $this->viewBuilder()->setClassName('Json');
+
         // Desabilita o FlashComponent (Não usado em API)
         if ($this->components()->has('Flash')) {
             $this->loadComponent('Flash')->setConfig('allowedActions', []);
@@ -41,13 +42,13 @@ class UserAccountController extends AppController
     public function beforeFilter(\Cake\Event\EventInterface $event)
     {
         parent::beforeFilter($event);
-        
+
         // Permite acesso às ações de 'login', 'logout' e 'add' sem autenticação
-        $this->Authentication->allowUnauthenticated(['logout', 'login', 'add']);
-        
+        $this->Authentication->allowUnauthenticated(['logout', 'login', 'add', 'status']);
+
         // Desabilita FormProtection/CSRF para ações de API
         if ($this->components()->has('FormProtection')) {
-             $this->FormProtection->setConfig('unlockedActions', ['add', 'edit', 'delete', 'login', 'logout']);
+            $this->FormProtection->setConfig('unlockedActions', ['add', 'edit', 'delete', 'login', 'logout', 'status']);
         }
 
         // 🌟 CORREÇÃO CRÍTICA PARA O ERRO 405 (MÉTODO NÃO PERMITIDO APÓS REDIRECT) 🌟
@@ -116,7 +117,7 @@ class UserAccountController extends AppController
             // SUCESSO: Retorna status 201 Created
             $this->set('userAccount', $userAccount);
             $this->viewBuilder()->setOption('serialize', ['userAccount']);
-            $this->response = $this->response->withStatus(201); 
+            $this->response = $this->response->withStatus(201);
             return;
         }
 
@@ -135,30 +136,29 @@ class UserAccountController extends AppController
     {
         // Apenas PATCH e PUT
         $this->request->allowMethod(['patch', 'put']);
-        
+
         try {
             $userAccount = $this->UserAccount->get($id, contain: []);
-            
+
             if ($this->components()->has('Authorization')) {
                 $this->Authorization->authorize($userAccount, 'update');
             }
 
             $userAccount = $this->UserAccount->patchEntity($userAccount, $this->request->getData());
-            
+
             if ($this->UserAccount->save($userAccount)) {
                 // SUCESSO: Retorna o usuário atualizado com status 200 OK
                 $this->set('userAccount', $userAccount);
                 $this->viewBuilder()->setOption('serialize', ['userAccount']);
                 $this->response = $this->response->withStatus(200);
                 return;
-            } 
-            
+            }
+
             // FALHA NA VALIDAÇÃO: Retorna erros e status 422
             $this->set('errors', $userAccount->getErrors());
             $this->set(['message' => 'Erro de validação na atualização.']);
             $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
             $this->response = $this->response->withStatus(422);
-
         } catch (\Cake\Datasource\Exception\RecordNotFoundException $e) {
             $this->response = $this->response->withStatus(404);
             $this->set(['message' => 'Usuário não encontrado para edição.']);
@@ -171,8 +171,8 @@ class UserAccountController extends AppController
      */
     public function delete($id = null)
     {
-        $this->request->allowMethod(['delete']); 
-        
+        $this->request->allowMethod(['delete']);
+
         try {
             $userAccount = $this->UserAccount->get($id);
             if ($this->components()->has('Authorization')) {
@@ -181,15 +181,14 @@ class UserAccountController extends AppController
 
             if ($this->UserAccount->delete($userAccount)) {
                 // SUCESSO: Retorna status 204 No Content
-                $this->response = $this->response->withStatus(204); 
+                $this->response = $this->response->withStatus(204);
                 return $this->response;
-            } 
-            
+            }
+
             // FALHA NA EXCLUSÃO (Interna)
-            $this->response = $this->response->withStatus(500); 
+            $this->response = $this->response->withStatus(500);
             $this->set(['message' => 'Não foi possível excluir o usuário devido a um erro interno.']);
             $this->viewBuilder()->setOption('serialize', ['message']);
-
         } catch (\Cake\Datasource\Exception\RecordNotFoundException $e) {
             $this->response = $this->response->withStatus(404);
             $this->set(['message' => 'Usuário não encontrado para exclusão.']);
@@ -207,17 +206,17 @@ class UserAccountController extends AppController
     public function login()
     {
         $this->Authorization->skipAuthorization();
-        $this->request->allowMethod(['post', 'options']); 
-        
+        $this->request->allowMethod(['post', 'options']);
+
         $result = $this->Authentication->getResult();
-        
+
         if ($result->isValid()) {
             // SUCESSO: Retorna status 200 OK
-            
+
             // 🌟 CORREÇÃO FINAL AQUI: Usamos getOriginalData() antes de toArray() 🌟
             // O getIdentity() retorna um decorator, precisamos extrair a entidade original dele.
             $user = $this->Authentication->getIdentity()->getOriginalData()->toArray();
-            
+
             // Remove o hash da senha do retorno JSON por segurança
             unset($user['password_hash']);
 
@@ -225,11 +224,11 @@ class UserAccountController extends AppController
             $this->viewBuilder()->setOption('serialize', ['user']);
             $this->response = $this->response->withStatus(200);
             return;
-        } 
-        
+        }
+
         // FALHA NA AUTENTICAÇÃO (Apenas se o método foi POST e falhou)
         if ($this->request->is('post') && !$result->isValid()) {
-            $this->response = $this->response->withStatus(401); 
+            $this->response = $this->response->withStatus(401);
             $this->set(['message' => 'Usuário ou senha inválidos.']);
             $this->viewBuilder()->setOption('serialize', ['message']);
             return;
@@ -243,13 +242,46 @@ class UserAccountController extends AppController
     {
         $this->Authorization->skipAuthorization();
         $this->request->allowMethod(['post', 'options']);
-        
+
         $this->Authentication->logout();
-        
+
         // SUCESSO: Retorna status 200 OK
-        $this->response = $this->response->withStatus(200); 
+        $this->response = $this->response->withStatus(200);
         $this->set(['message' => 'Logout realizado com sucesso.']);
         $this->viewBuilder()->setOption('serialize', ['message']);
         return;
+    }
+
+    public function status()
+    {
+        $user = $this->Authentication->getIdentity(); // Identity object
+
+        if ($user) {
+            // 🌟 Tenta acessar a Entity subjacente se estiver usando ORM
+            $userEntity = $user->getOriginalData();
+
+            // Se $userEntity for a sua User Entity, ela terá toArray()
+            if (method_exists($userEntity, 'toArray')) {
+                $userData = $userEntity->toArray();
+            } else {
+                // Caso não seja Entity, tenta converter o objeto Identity diretamente para array
+                // Isso pode não funcionar perfeitamente, mas é uma alternativa
+                $userData = (array)$user;
+            }
+
+            $this->set('user', $userData);
+            $this->viewBuilder()->setOption('serialize', ['user']);
+        } else {
+            // ... (restante do tratamento de erro 401)
+
+
+            // Se o usuário não está logado, retornamos 401 (Não Autorizado)
+            // O `request` helper no seu React já lida com este erro.
+            $this->response = $this->response->withStatus(401);
+            $this->set([
+                'message' => 'Sessão expirada ou inválida.',
+                '_serialize' => ['message']
+            ]);
+        }
     }
 }

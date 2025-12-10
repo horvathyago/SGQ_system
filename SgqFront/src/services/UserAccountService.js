@@ -85,6 +85,16 @@ const UserAccountService = {
     },
 
     /**
+     * [GET] Verifica o status da sessão.
+     * Endpoint: /user-account/status.json
+     */
+    checkStatus: async () => { // 🌟 FUNÇÃO ADICIONADA
+        const data = await request('/status.json');
+        // O CakePHP retorna { "user": {...} }, então acessamos a propriedade 'user'.
+        return data.user; 
+    },
+    
+    /**
      * [POST] Realiza o logout.
      * Endpoint: /user-account/logout.json
      */
