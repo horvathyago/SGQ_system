@@ -3,107 +3,154 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\Response;
+use Cake\Datasource\Exception\RecordNotFoundException;
+use Cake\View\JsonView;
+
 /**
- * InspectionItem Controller
+ * InspectionItem Controller (API)
  *
  * @property \App\Model\Table\InspectionItemTable $InspectionItem
  */
 class InspectionItemController extends AppController
 {
+    // 🎯 Correção: Configura a view padrão para JSON
+    public function viewClasses(): array
+    {
+        return [JsonView::class];
+    }
+
+    public function initialize(): void
+    {
+        parent::initialize();
+        // 🚨 RequestHandlerComponent REMOVIDO
+        $this->viewBuilder()->setClassName('Json');
+
+        if ($this->components()->has('Flash')) {
+            $this->loadComponent('Flash')->setConfig('allowedActions', []);
+        }
+    }
+
     /**
-     * Index method
-     *
-     * @return \Cake\Http\Response|null|void Renders view
+     * Rota: GET /inspection-item
      */
-    public function index()
+    public function index(): ?Response
     {
         $query = $this->InspectionItem->find()
             ->contain(['Inspections', 'ItemMasters', 'TemplateItems', 'CalibrationRecords']);
         $inspectionItem = $this->paginate($query);
 
         $this->set(compact('inspectionItem'));
+        $this->viewBuilder()->setOption('serialize', 'inspectionItem');
+        return null;
     }
 
     /**
-     * View method
-     *
-     * @param string|null $id Inspection Item id.
-     * @return \Cake\Http\Response|null|void Renders view
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
+     * Rota: GET /inspection-item/{id}
      */
-    public function view($id = null)
+    public function view($id = null): ?Response
     {
-        $inspectionItem = $this->InspectionItem->get($id, contain: ['Inspections', 'ItemMasters', 'TemplateItems', 'CalibrationRecords', 'NonConformity']);
-        $this->set(compact('inspectionItem'));
+        try {
+            $inspectionItem = $this->InspectionItem->get($id, [
+                'contain' => ['Inspections', 'ItemMasters', 'TemplateItems', 'CalibrationRecords', 'NonConformity']
+            ]);
+            $this->set(compact('inspectionItem'));
+            $this->viewBuilder()->setOption('serialize', 'inspectionItem');
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(404);
+            $this->set(['message' => 'Inspection Item not found']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+        }
+        return null;
     }
 
     /**
-     * Add method
-     *
-     * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
+     * Rota: POST /inspection-item
      */
-    public function add()
+    public function add(): ?Response
     {
+        $this->request->allowMethod(['post']);
+
         $inspectionItem = $this->InspectionItem->newEmptyEntity();
-        if ($this->request->is('post')) {
-            $inspectionItem = $this->InspectionItem->patchEntity($inspectionItem, $this->request->getData());
-            if ($this->InspectionItem->save($inspectionItem)) {
-                $this->Flash->success(__('The inspection item has been saved.'));
-
-                return $this->redirect(['action' => 'index']);
-            }
-            $this->Flash->error(__('The inspection item could not be saved. Please, try again.'));
-        }
-        $inspections = $this->InspectionItem->Inspections->find('list', limit: 200)->all();
-        $itemMasters = $this->InspectionItem->ItemMasters->find('list', limit: 200)->all();
-        $templateItems = $this->InspectionItem->TemplateItems->find('list', limit: 200)->all();
-        $calibrationRecords = $this->InspectionItem->CalibrationRecords->find('list', limit: 200)->all();
-        $this->set(compact('inspectionItem', 'inspections', 'itemMasters', 'templateItems', 'calibrationRecords'));
-    }
-
-    /**
-     * Edit method
-     *
-     * @param string|null $id Inspection Item id.
-     * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function edit($id = null)
-    {
-        $inspectionItem = $this->InspectionItem->get($id, contain: []);
-        if ($this->request->is(['patch', 'post', 'put'])) {
-            $inspectionItem = $this->InspectionItem->patchEntity($inspectionItem, $this->request->getData());
-            if ($this->InspectionItem->save($inspectionItem)) {
-                $this->Flash->success(__('The inspection item has been saved.'));
-
-                return $this->redirect(['action' => 'index']);
-            }
-            $this->Flash->error(__('The inspection item could not be saved. Please, try again.'));
-        }
-        $inspections = $this->InspectionItem->Inspections->find('list', limit: 200)->all();
-        $itemMasters = $this->InspectionItem->ItemMasters->find('list', limit: 200)->all();
-        $templateItems = $this->InspectionItem->TemplateItems->find('list', limit: 200)->all();
-        $calibrationRecords = $this->InspectionItem->CalibrationRecords->find('list', limit: 200)->all();
-        $this->set(compact('inspectionItem', 'inspections', 'itemMasters', 'templateItems', 'calibrationRecords'));
-    }
-
-    /**
-     * Delete method
-     *
-     * @param string|null $id Inspection Item id.
-     * @return \Cake\Http\Response|null Redirects to index.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function delete($id = null)
-    {
-        $this->request->allowMethod(['post', 'delete']);
-        $inspectionItem = $this->InspectionItem->get($id);
-        if ($this->InspectionItem->delete($inspectionItem)) {
-            $this->Flash->success(__('The inspection item has been deleted.'));
+        $inspectionItem = $this->InspectionItem->patchEntity($inspectionItem, $this->request->getData());
+        
+        if ($this->InspectionItem->save($inspectionItem)) {
+            
+            $this->set([
+                'inspectionItem' => $inspectionItem,
+                'message' => 'Inspection Item created successfully',
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['inspectionItem', 'message']);
+            $this->response = $this->response->withStatus(201); // 201 Created
         } else {
-            $this->Flash->error(__('The inspection item could not be deleted. Please, try again.'));
+            $this->set([
+                'message' => 'Validation error',
+                'errors' => $inspectionItem->getErrors(),
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
+            $this->response = $this->response->withStatus(422);
+        }
+        return null;
+    }
+
+    /**
+     * Rota: PUT/PATCH /inspection-item/{id}
+     */
+    public function edit($id = null): ?Response
+    {
+        $this->request->allowMethod(['patch', 'put']);
+
+        try {
+            $inspectionItem = $this->InspectionItem->get($id);
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(404);
+            $this->set(['message' => 'Inspection Item not found for editing']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+            return null;
         }
 
-        return $this->redirect(['action' => 'index']);
+        $inspectionItem = $this->InspectionItem->patchEntity($inspectionItem, $this->request->getData());
+        
+        if ($this->InspectionItem->save($inspectionItem)) {
+            
+            $this->set([
+                'inspectionItem' => $inspectionItem,
+                'message' => 'Inspection Item updated successfully',
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['inspectionItem', 'message']);
+            $this->response = $this->response->withStatus(200);
+        } else {
+            $this->set([
+                'message' => 'Validation error',
+                'errors' => $inspectionItem->getErrors(),
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
+            $this->response = $this->response->withStatus(422);
+        }
+        return null;
+    }
+
+    /**
+     * Rota: DELETE /inspection-item/{id}
+     */
+    public function delete($id = null): ?Response
+    {
+        $this->request->allowMethod(['delete']);
+
+        try {
+            $inspectionItem = $this->InspectionItem->get($id);
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(204);
+            return null;
+        }
+
+        if ($this->InspectionItem->delete($inspectionItem)) {
+            $this->response = $this->response->withStatus(204);
+        } else {
+            $this->response = $this->response->withStatus(500);
+            $this->set(['message' => 'Inspection Item could not be deleted']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+        }
+        return null;
     }
 }

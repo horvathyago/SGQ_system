@@ -3,113 +3,202 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\Response; 
 use Cake\Datasource\ConnectionManager;
 use Cake\Database\Connection;
+use Cake\Datasource\Exception\RecordNotFoundException;
+use Cake\View\JsonView;
 
 /**
- * ItemMaster Controller
+ * ItemMaster Controller (API)
  *
  * @property \App\Model\Table\ItemMasterTable $ItemMaster
  */
 class ItemMasterController extends AppController
 {
-    public function index()
+    // 1. Configura a view padrão para JSON
+    public function viewClasses(): array
     {
-        $query = $this->ItemMaster->find();
+        return [JsonView::class];
+    }
+
+    public function initialize(): void
+    {
+        parent::initialize();
+        // Remove RequestHandlerComponent e dependências de Flash/Redirects
+        $this->viewBuilder()->setClassName('Json');
+
+        if ($this->components()->has('Flash')) {
+            $this->loadComponent('Flash')->setConfig('allowedActions', []);
+        }
+        
+        // 🚨 CORREÇÃO CRÍTICA: Inicializar a propriedade do Model para resolver o 'find() on null'
+        $this->ItemMaster = $this->fetchTable('ItemMaster');
+    }
+
+    /**
+     * Rota: GET /item-master
+     * Retorna a lista de itens mestre.
+     */
+    public function index(): ?Response
+    {
+        // Esta linha agora funcionará, pois $this->ItemMaster não é mais null.
+        $query = $this->ItemMaster->find(); 
         $itemMaster = $this->paginate($query);
 
         $this->set(compact('itemMaster'));
+        $this->viewBuilder()->setOption('serialize', 'itemMaster');
+        return null;
     }
 
-    public function view($id = null)
+    /**
+     * Rota: GET /item-master/{id}
+     * Retorna os detalhes de um item mestre.
+     */
+    public function view($id = null): ?Response
     {
-        $itemMaster = $this->ItemMaster->get($id, contain: [
-            'InspectionItem',
-            'ItemMasterVersion',
-            'TemplateItem'
-        ]);
+        try {
+            $itemMaster = $this->ItemMaster->get($id, [
+                'contain' => [
+                    'InspectionItem',
+                    'ItemMasterVersion',
+                    'TemplateItem'
+                ]
+            ]);
 
-        $this->set(compact('itemMaster'));
+            $this->set(compact('itemMaster'));
+            $this->viewBuilder()->setOption('serialize', 'itemMaster');
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(404);
+            $this->set(['message' => 'Item Mestre não encontrado.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+        }
+        return null;
     }
 
-    public function add()
+    /**
+     * Rota: POST /item-master
+     * Cria um novo item mestre.
+     */
+    public function add(): ?Response
     {
+        $this->request->allowMethod(['post']);
+
         $itemMaster = $this->ItemMaster->newEmptyEntity();
+        $itemMaster = $this->ItemMaster->patchEntity($itemMaster, $this->request->getData());
 
-        if ($this->request->is('post')) {
-
-            $itemMaster = $this->ItemMaster->patchEntity($itemMaster, $this->request->getData());
-
-            if ($this->ItemMaster->save($itemMaster)) {
-                $this->Flash->success('The item master has been saved.');
-                return $this->redirect(['action' => 'index']);
-            }
-
-            $this->Flash->error('The item master could not be saved. Please, try again.');
+        if ($this->ItemMaster->save($itemMaster)) {
+            $this->set([
+                'itemMaster' => $itemMaster,
+                'message' => 'Item Mestre salvo com sucesso.',
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['itemMaster', 'message']);
+            $this->response = $this->response->withStatus(201); // 201 Created
+        } else {
+            $this->set([
+                'message' => 'Erro de validação ao salvar item mestre.',
+                'errors' => $itemMaster->getErrors(),
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
+            $this->response = $this->response->withStatus(422); // 422 Unprocessable Entity
         }
-
-        $this->set(compact('itemMaster'));
+        return null;
     }
 
-    public function edit($id = null)
+    /**
+     * Rota: PUT/PATCH /item-master/{id}
+     * Edita um item mestre e gerencia a criação de nova versão (Stored Procedure).
+     */
+    public function edit($id = null): ?Response
     {
-        $itemMaster = $this->ItemMaster->get($id);
+        $this->request->allowMethod(['patch', 'post', 'put']);
 
-        if ($this->request->is(['patch', 'post', 'put'])) {
+        try {
+            $itemMaster = $this->ItemMaster->get($id);
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(404);
+            $this->set(['message' => 'Item Mestre não encontrado para edição.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+            return null;
+        }
 
-            $data = $this->request->getData();
+        $data = $this->request->getData();
+        $itemMaster = $this->ItemMaster->patchEntity($itemMaster, $data);
+        
+        $newVersionCreated = false;
 
-            // Salva alterações normais
-            $itemMaster = $this->ItemMaster->patchEntity($itemMaster, $data);
+        if ($this->ItemMaster->save($itemMaster)) {
 
-            if ($this->ItemMaster->save($itemMaster)) {
+            // Verifica se deve criar nova versão
+            if (!empty($data['criar_versao']) && $data['criar_versao'] == 1) {
+                try {
+                    /** @var Connection $conn */
+                    $conn = ConnectionManager::get('default');
 
-                // Verifica se deve criar nova versão
-                if (!empty($data['criar_versao']) && $data['criar_versao'] == 1) {
+                    // Chama a procedure via driver (forma correta no CakePHP 5)
+                    $stmt = $conn->getDriver()->prepare(
+                        "CALL criar_nova_versao_item(:id)"
+                    );
 
-                    try {
-                        /** @var Connection $conn */
-                        $conn = ConnectionManager::get('default');
+                    $stmt->bindValue('id', $id);
+                    $stmt->execute();
 
-                        // Chama a procedure via driver (forma correta no CakePHP 5)
-                        $stmt = $conn->getDriver()->prepare(
-                            "CALL criar_nova_versao_item(:id)"
-                        );
+                    $newVersionCreated = true;
 
-                        $stmt->bindValue('id', $id);
-                        $stmt->execute();
-
-                        $this->Flash->success('Alterações salvas e nova versão criada!');
-
-                    } catch (\Exception $e) {
-                        $this->Flash->error('Erro ao criar nova versão: ' . $e->getMessage());
-                    }
-
-                } else {
-                    $this->Flash->success('Alterações salvas sem criar nova versão.');
+                } catch (\Exception $e) {
+                    // Erro na procedure: retorna 400, mas o item base JÁ foi salvo (200)
+                    $this->set([
+                        'message' => 'Alterações salvas, mas houve um erro ao criar a nova versão.',
+                        'error_detail' => $e->getMessage(),
+                    ]);
+                    $this->viewBuilder()->setOption('serialize', ['message', 'error_detail']);
+                    $this->response = $this->response->withStatus(400);
+                    return null;
                 }
-
-                return $this->redirect(['action' => 'index']);
             }
 
-            $this->Flash->error('Não foi possível salvar o item.');
+            $message = $newVersionCreated ? 'Alterações salvas e nova versão criada!' : 'Alterações salvas com sucesso.';
+
+            $this->set([
+                'itemMaster' => $itemMaster,
+                'message' => $message,
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['itemMaster', 'message']);
+            $this->response = $this->response->withStatus(200);
+        } else {
+            $this->set([
+                'message' => 'Erro de validação ao salvar o item.',
+                'errors' => $itemMaster->getErrors(),
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
+            $this->response = $this->response->withStatus(422);
         }
 
-        $this->set(compact('itemMaster'));
+        return null;
     }
 
-    public function delete($id = null)
+    /**
+     * Rota: DELETE /item-master/{id}
+     * Deleta um item mestre.
+     */
+    public function delete($id = null): ?Response
     {
-        $this->request->allowMethod(['post', 'delete']);
+        $this->request->allowMethod(['delete']);
 
-        $itemMaster = $this->ItemMaster->get($id);
+        try {
+            $itemMaster = $this->ItemMaster->get($id);
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(204); // 204 No Content (Já removido)
+            return null;
+        }
 
         if ($this->ItemMaster->delete($itemMaster)) {
-            $this->Flash->success('The item master has been deleted.');
+            $this->response = $this->response->withStatus(204); // 204 No Content (Sucesso)
         } else {
-            $this->Flash->error('The item master could not be deleted. Please, try again.');
+            $this->response = $this->response->withStatus(500);
+            $this->set(['message' => 'Não foi possível remover o item mestre.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
         }
-
-        return $this->redirect(['action' => 'index']);
+        return null;
     }
 }

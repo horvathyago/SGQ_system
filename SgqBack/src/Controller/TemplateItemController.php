@@ -3,26 +3,45 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Controller\AppController;
+use Cake\Http\Response; // Importação essencial para tipagem
 use Cake\Datasource\Exception\RecordNotFoundException;
-use Cake\ORM\TableRegistry;
 use Cake\I18n\FrozenTime;
+use Cake\View\JsonView;
 
 /**
+ * TemplateItem Controller (API)
+ * Gerencia os passos individuais que compõem um Checklist.
+ *
  * @property \App\Model\Table\TemplateItemTable $TemplateItem
  */
 class TemplateItemController extends AppController
 {
+    public function viewClasses(): array
+    {
+        return [JsonView::class];
+    }
+
     public function initialize(): void
     {
         parent::initialize();
-        $this->loadComponent('Flash');
+        $this->loadComponent('RequestHandler');
+        $this->viewBuilder()->setClassName('Json');
 
-        // garante tipagem para IDEs
+        // Remove o FlashComponent, pois ele é inútil em API
+        $this->components()->has('Flash') ? $this->components()->unload('Flash') : null;
+
+        // Garante a injeção do modelo (já estava correto)
         $this->TemplateItem = $this->fetchTable('TemplateItem');
     }
+    
+    // O método privado _detectDisplayField e a lógica de carregamento de listas para views
+    // foram removidos daqui, pois não são apropriados para controladores de API.
 
-    public function index()
+    /**
+     * Rota: GET /template-item
+     * Lista todos os Itens de Template.
+     */
+    public function index(): ?Response
     {
         $query = $this->TemplateItem->find()
             ->contain(['ChecklistTemplate', 'ItemMaster'])
@@ -30,161 +49,131 @@ class TemplateItemController extends AppController
 
         $templateItem = $this->paginate($query, ['limit' => 25]);
         $this->set(compact('templateItem'));
-    }
-
-    public function view(string $id = null)
-    {
-        if (!$id) {
-            throw new RecordNotFoundException('ID é obrigatório.');
-        }
-
-        $templateItem = $this->TemplateItem->get($id, [
-            'contain' => ['ChecklistTemplate', 'ItemMaster', 'InspectionItem'],
-        ]);
-
-        $this->set(compact('templateItem'));
-    }
-
-    public function add()
-    {
-        $templateItem = $this->TemplateItem->newEmptyEntity();
-
-        if ($this->request->is('post')) {
-            $data = $this->request->getData();
-
-            // created_at: se não vier, gera automaticamente
-            if (empty($data['created_at'])) {
-                $data['created_at'] = FrozenTime::now();
-            }
-
-            $templateItem = $this->TemplateItem->patchEntity($templateItem, $data);
-
-            // Se validation/buildRules falharem, $templateItem terá erros
-            if ($this->TemplateItem->save($templateItem)) {
-                $this->Flash->success('Template item salvo com sucesso.');
-                return $this->redirect(['action' => 'index']);
-            }
-
-            // Mostra mensagens de validação (útil para debugging)
-            $errors = $templateItem->getErrors();
-            if (!empty($errors)) {
-                $this->Flash->error('Erro ao salvar: ' . json_encode($errors));
-            } else {
-                $this->Flash->error('Erro desconhecido ao salvar template item.');
-            }
-        }
-
-        // Carrega listas para a view: as chaves e nomes corretos
-        $checklistTemplateTable = TableRegistry::getTableLocator()->get('ChecklistTemplate');
-        $itemMasterTable = TableRegistry::getTableLocator()->get('ItemMaster');
-
-        // Detecta o campo de exibição (valueField) para cada tabela de forma segura:
-        $checklistDisplay = $this->_detectDisplayField($checklistTemplateTable, ['name', 'title', 'descricao']);
-        $itemMasterDisplay = $this->_detectDisplayField($itemMasterTable, ['title', 'name', 'nome']);
-
-        $checklistTemplateVersions = $checklistTemplateTable->find('list', [
-            'keyField' => 'id',
-            'valueField' => $checklistDisplay
-        ])->toArray();
-
-        $itemMasters = $itemMasterTable->find('list', [
-            'keyField' => 'id',
-            'valueField' => $itemMasterDisplay
-        ])->toArray();
-
-        $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters'));
-    }
-
-    public function edit(string $id = null)
-    {
-        if (!$id) {
-            throw new RecordNotFoundException('ID é obrigatório.');
-        }
-
-        $templateItem = $this->TemplateItem->get($id);
-
-        if ($this->request->is(['patch', 'post', 'put'])) {
-            $data = $this->request->getData();
-            $templateItem = $this->TemplateItem->patchEntity($templateItem, $data);
-
-            if ($this->TemplateItem->save($templateItem)) {
-                $this->Flash->success('Template item atualizado com sucesso.');
-                return $this->redirect(['action' => 'index']);
-            }
-
-            $errors = $templateItem->getErrors();
-            if (!empty($errors)) {
-                $this->Flash->error('Erro ao atualizar: ' . json_encode($errors));
-            } else {
-                $this->Flash->error('Erro desconhecido ao atualizar.');
-            }
-        }
-
-        // Reusar a lógica de carregamento de listas
-        $checklistTemplateTable = TableRegistry::getTableLocator()->get('ChecklistTemplate');
-        $itemMasterTable = TableRegistry::getTableLocator()->get('ItemMaster');
-
-        $checklistDisplay = $this->_detectDisplayField($checklistTemplateTable, ['name', 'title', 'descricao']);
-        $itemMasterDisplay = $this->_detectDisplayField($itemMasterTable, ['title', 'name', 'nome']);
-
-        $checklistTemplateVersions = $checklistTemplateTable->find('list', [
-            'keyField' => 'id',
-            'valueField' => $checklistDisplay
-        ])->toArray();
-
-        $itemMasters = $itemMasterTable->find('list', [
-            'keyField' => 'id',
-            'valueField' => $itemMasterDisplay
-        ])->toArray();
-
-        $this->set(compact('templateItem', 'checklistTemplateVersions', 'itemMasters'));
-    }
-
-    public function delete(string $id = null)
-    {
-        $this->request->allowMethod(['post', 'delete']);
-
-        if (!$id) {
-            $this->Flash->error('ID é obrigatório.');
-            return $this->redirect(['action' => 'index']);
-        }
-
-        try {
-            $templateItem = $this->TemplateItem->get($id);
-            if ($this->TemplateItem->delete($templateItem)) {
-                $this->Flash->success('Template item removido.');
-            } else {
-                $this->Flash->error('Não foi possível remover o template item.');
-            }
-        } catch (RecordNotFoundException $e) {
-            $this->Flash->error('Template item não encontrado.');
-        }
-
-        return $this->redirect(['action' => 'index']);
+        $this->viewBuilder()->setOption('serialize', 'templateItem');
+        return null;
     }
 
     /**
-     * Helper privado: detecta um campo de exibição disponível (valueField)
+     * Rota: GET /template-item/{id}
+     * Visualiza um Item de Template específico.
      */
-    private function _detectDisplayField($table, array $candidates = [])
+    public function view(string $id = null): ?Response
     {
-        $schema = $table->getSchema();
-        $cols = $schema->columns();
+        try {
+            // O check 'if (!$id)' é resolvido pela exceção get() se o ID for inválido
+            $templateItem = $this->TemplateItem->get($id, [
+                'contain' => ['ChecklistTemplate', 'ItemMaster', 'InspectionItem'],
+            ]);
+            $this->set(compact('templateItem'));
+            $this->viewBuilder()->setOption('serialize', 'templateItem');
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(404);
+            $this->set(['message' => 'Template item não encontrado.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+        }
+        return null;
+    }
 
-        foreach ($candidates as $c) {
-            if (in_array($c, $cols)) {
-                return $c;
-            }
+    /**
+     * Rota: POST /template-item
+     * Cria um novo Item de Template.
+     */
+    public function add(): ?Response
+    {
+        $this->request->allowMethod(['post']);
+
+        $templateItem = $this->TemplateItem->newEmptyEntity();
+        $data = $this->request->getData();
+
+        // created_at: se não vier, gera automaticamente
+        if (empty($data['created_at'])) {
+            $data['created_at'] = FrozenTime::now();
         }
 
-        // fallback: primeiro string/text column
-        foreach ($cols as $col) {
-            $type = $schema->getColumnType($col);
-            if ($type === 'string' || $type === 'text') {
-                return $col;
-            }
+        $templateItem = $this->TemplateItem->patchEntity($templateItem, $data);
+
+        if ($this->TemplateItem->save($templateItem)) {
+            $this->set([
+                'templateItem' => $templateItem,
+                'message' => 'Template item salvo com sucesso.',
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['templateItem', 'message']);
+            $this->response = $this->response->withStatus(201); // 201 Created
+        } else {
+            // Erro de validação
+            $this->set([
+                'message' => 'Erro de validação ao salvar template item.',
+                'errors' => $templateItem->getErrors(),
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
+            $this->response = $this->response->withStatus(422); // 422 Unprocessable Entity
+        }
+        return null;
+    }
+
+    /**
+     * Rota: PUT/PATCH /template-item/{id}
+     * Edita um Item de Template existente.
+     */
+    public function edit(string $id = null): ?Response
+    {
+        $this->request->allowMethod(['patch', 'put']);
+
+        try {
+            // O check 'if (!$id)' é resolvido pela exceção get() se o ID for inválido
+            $templateItem = $this->TemplateItem->get($id);
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(404);
+            $this->set(['message' => 'Template item não encontrado para edição.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+            return null;
         }
 
-        return 'id';
+        $data = $this->request->getData();
+        $templateItem = $this->TemplateItem->patchEntity($templateItem, $data);
+
+        if ($this->TemplateItem->save($templateItem)) {
+            $this->set([
+                'templateItem' => $templateItem,
+                'message' => 'Template item atualizado com sucesso.',
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['templateItem', 'message']);
+            $this->response = $this->response->withStatus(200); // 200 OK
+        } else {
+            // Erro de validação
+            $this->set([
+                'message' => 'Erro de validação ao atualizar.',
+                'errors' => $templateItem->getErrors(),
+            ]);
+            $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
+            $this->response = $this->response->withStatus(422);
+        }
+        return null;
+    }
+
+    /**
+     * Rota: DELETE /template-item/{id}
+     * Deleta um Item de Template.
+     */
+    public function delete(string $id = null): ?Response
+    {
+        $this->request->allowMethod(['delete']);
+
+        try {
+            // O check 'if (!$id)' é resolvido pela exceção get() se o ID for inválido
+            $templateItem = $this->TemplateItem->get($id);
+        } catch (RecordNotFoundException $e) {
+            $this->response = $this->response->withStatus(204); // 204 No Content (Já removido)
+            return null;
+        }
+
+        if ($this->TemplateItem->delete($templateItem)) {
+            $this->response = $this->response->withStatus(204); // 204 No Content (Sucesso)
+        } else {
+            $this->response = $this->response->withStatus(500);
+            $this->set(['message' => 'Não foi possível remover o template item.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+        }
+        return null;
     }
 }
