@@ -6,35 +6,41 @@ import PrivateRoute from './components/routes/PrivateRoute';
 
 // Importa suas Páginas
 import LoginPage from './pages/LoginPage';
-// Importe o seu Dashboard ou Home page para o usuário logado
-import DashboardPage from './pages/DashboardPage'; // Crie esta página se ainda não existir! 
+import DashboardPage from './pages/DashboardPage'; 
+
+// 🎯 NOVO: Importa a página que irá gerenciar o processo de inspeção por fases
+import InspectionManagerPage from './pages/InspectionManagerPage'; 
 
 function App() {
     return (
-        // O Router é o contêiner principal para navegação
         <Router>
-            {/* O AuthProvider envolve tudo o que precisa de autenticação */}
             <AuthProvider>
                 <Routes>
-                    {/* Rota Pública: Usa LoginPage (o formulário centralizado) */}
+                    {/* Rota Pública */}
                     <Route path="/" element={<LoginPage />} />
 
-                    {/* Rota Protegida: Requer login, usa PrivateRoute */}
+                    {/* Rota Protegida para Dashboard */}
                     <Route 
                         path="/dashboard" 
                         element={
                             <PrivateRoute>
-                                {/* O conteúdo que só aparece para usuários logados */}
                                 <DashboardPage /> 
                             </PrivateRoute>
                         } 
                     />
 
-                    {/* Adicione outras rotas protegidas aqui */}
-                    {/* <Route path="/perfil" element={<PrivateRoute><ProfilePage /></PrivateRoute>} /> */}
+                    {/* 🎯 Rota Protegida para o Processo de Inspeção */}
+                    <Route 
+                        path="/inspection" 
+                        element={
+                            <PrivateRoute>
+                                <InspectionManagerPage /> 
+                            </PrivateRoute>
+                        } 
+                    />
                     
                     {/* Opcional: Rota de 404 */}
-                    {/* <Route path="*" element={<div>Página Não Encontrada</div>} /> */}
+                    <Route path="*" element={<div>Página Não Encontrada</div>} />
                 </Routes>
             </AuthProvider>
         </Router>
