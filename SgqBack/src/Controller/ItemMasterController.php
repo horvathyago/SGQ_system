@@ -42,11 +42,15 @@ class ItemMasterController extends AppController
      */
     public function index(): ?Response
     {
-        // Esta linha agora funcionará, pois $this->ItemMaster não é mais null.
-        $query = $this->ItemMaster->find(); 
-        $itemMaster = $this->paginate($query);
+        // 🚨 CORREÇÃO: Removendo o uso de $this->paginate()
+        // Isso garante que o CakePHP retorne o array puro de entidades,
+        // eliminando a complexidade do objeto de paginação (paging: { data: [...] }).
+        
+        $itemMaster = $this->ItemMaster->find('all')
+                                       ->toArray(); // Converte o Query Builder diretamente para um array
 
         $this->set(compact('itemMaster'));
+        // Agora, o JSON retornado será: { "itemMaster": [ {item1}, {item2}, ... ] }
         $this->viewBuilder()->setOption('serialize', 'itemMaster');
         return null;
     }
