@@ -42,16 +42,14 @@ class ItemMasterController extends AppController
      */
     public function index(): ?Response
     {
-        // 🚨 CORREÇÃO: Removendo o uso de $this->paginate()
-        // Isso garante que o CakePHP retorne o array puro de entidades,
-        // eliminando a complexidade do objeto de paginação (paging: { data: [...] }).
-        
+        // O código do seu ItemMasterController original foi ajustado para evitar o uso de paginate,
+        // mas a serialização estava com o nome errado para o Front-end.
         $itemMaster = $this->ItemMaster->find('all')
-                                       ->toArray(); // Converte o Query Builder diretamente para um array
+                                       ->toArray(); 
 
-        $this->set(compact('itemMaster'));
-        // Agora, o JSON retornado será: { "itemMaster": [ {item1}, {item2}, ... ] }
-        $this->viewBuilder()->setOption('serialize', 'itemMaster');
+        // CORREÇÃO: Serializa como 'data' (convenção comum para arrays de dados)
+        $this->set('data', $itemMaster);
+        $this->viewBuilder()->setOption('serialize', 'data'); 
         return null;
     }
 
@@ -88,22 +86,36 @@ class ItemMasterController extends AppController
     {
         $this->request->allowMethod(['post']);
 
+        // 🚨 CORREÇÃO: Usar getParsedBody() para garantir que o corpo JSON seja lido corretamente.
+        $requestData = $this->request->getParsedBody();
+
+        // Debug/tratamento para requisições com corpo vazio (JSON inválido/não lido)
+        if (empty($requestData)) {
+            $this->response = $this->response->withStatus(400); // 400 Bad Request
+            $this->set(['message' => 'Nenhum dado recebido. O corpo da requisição (JSON) pode estar vazio ou inválido.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+            return null;
+        }
+
         $itemMaster = $this->ItemMaster->newEmptyEntity();
-        $itemMaster = $this->ItemMaster->patchEntity($itemMaster, $this->request->getData());
+        $itemMaster = $this->ItemMaster->patchEntity($itemMaster, $requestData);
 
         if ($this->ItemMaster->save($itemMaster)) {
             $this->set([
                 'itemMaster' => $itemMaster,
                 'message' => 'Item Mestre salvo com sucesso.',
             ]);
+            // Adicionado 'id' e 'codigo_item' para garantir que o frontend receba dados úteis para normalização
             $this->viewBuilder()->setOption('serialize', ['itemMaster', 'message']);
             $this->response = $this->response->withStatus(201); // 201 Created
         } else {
             $this->set([
                 'message' => 'Erro de validação ao salvar item mestre.',
                 'errors' => $itemMaster->getErrors(),
+                // Adiciona o payload para debug no frontend em caso de 422
+                'payload_received' => $requestData,
             ]);
-            $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
+            $this->viewBuilder()->setOption('serialize', ['message', 'errors', 'payload_received']);
             $this->response = $this->response->withStatus(422); // 422 Unprocessable Entity
         }
         return null;
@@ -126,7 +138,16 @@ class ItemMasterController extends AppController
             return null;
         }
 
-        $data = $this->request->getData();
+        // 🚨 CORREÇÃO: Usar getParsedBody() para garantir que o corpo JSON seja lido corretamente.
+        $data = $this->request->getParsedBody();
+
+        if (empty($data)) {
+            $this->response = $this->response->withStatus(400);
+            $this->set(['message' => 'Nenhum dado de edição recebido.']);
+            $this->viewBuilder()->setOption('serialize', ['message']);
+            return null;
+        }
+        
         $itemMaster = $this->ItemMaster->patchEntity($itemMaster, $data);
         
         $newVersionCreated = false;

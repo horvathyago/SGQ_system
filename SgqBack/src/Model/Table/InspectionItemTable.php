@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Model\Table;
@@ -8,73 +9,46 @@ use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
-/**
- * InspectionItem Model
- *
- * @property \App\Model\Table\InspectionTable&\Cake\ORM\Association\BelongsTo $Inspections
- * @property \App\Model\Table\ItemMasterTable&\Cake\ORM\Association\BelongsTo $ItemMasters
- * @property \App\Model\Table\TemplateItemTable&\Cake\ORM\Association\BelongsTo $TemplateItems
- * @property \App\Model\Table\CalibrationRecordTable&\Cake\ORM\Association\BelongsTo $CalibrationRecords
- * @property \App\Model\Table\NonConformityTable&\Cake\ORM\Association\HasMany $NonConformity
- *
- * @method \App\Model\Entity\InspectionItem newEmptyEntity()
- * @method \App\Model\Entity\InspectionItem newEntity(array $data, array $options = [])
- * @method array<\App\Model\Entity\InspectionItem> newEntities(array $data, array $options = [])
- * @method \App\Model\Entity\InspectionItem get(mixed $primaryKey, array|string $finder = 'all', \Psr\SimpleCache\CacheInterface|string|null $cache = null, \Closure|string|null $cacheKey = null, mixed ...$args)
- * @method \App\Model\Entity\InspectionItem findOrCreate($search, ?callable $callback = null, array $options = [])
- * @method \App\Model\Entity\InspectionItem patchEntity(\Cake\Datasource\EntityInterface $entity, array $data, array $options = [])
- * @method array<\App\Model\Entity\InspectionItem> patchEntities(iterable $entities, array $data, array $options = [])
- * @method \App\Model\Entity\InspectionItem|false save(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method \App\Model\Entity\InspectionItem saveOrFail(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method iterable<\App\Model\Entity\InspectionItem>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\InspectionItem>|false saveMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\InspectionItem>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\InspectionItem> saveManyOrFail(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\InspectionItem>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\InspectionItem>|false deleteMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\InspectionItem>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\InspectionItem> deleteManyOrFail(iterable $entities, array $options = [])
- */
-class InspectionItemTable extends Table
+class InspectionTable extends Table
 {
-    /**
-     * Initialize method
-     *
-     * @param array<string, mixed> $config The configuration for the Table.
-     * @return void
-     */
     public function initialize(array $config): void
     {
         parent::initialize($config);
 
-        $this->setTable('inspection_item');
-        $this->setDisplayField('codigo_item_snapshot');
+        $this->setTable('inspection');
+        $this->setDisplayField('id');
         $this->setPrimaryKey('id');
 
-        $this->belongsTo('Inspections', [
+        // Timestamp behavior: popula created_at / updated_at automaticamente
+        $this->addBehavior('Timestamp', [
+            'events' => [
+                'Model.beforeSave' => [
+                    'created_at' => 'new',
+                    'updated_at' => 'always'
+                ]
+            ]
+        ]);
+
+        $this->belongsTo('ProductionOrders', [
+            'foreignKey' => 'production_order_id',
+            'className' => 'ProductionOrder',
+        ]);
+        $this->belongsTo('ChecklistTemplates', [
+            'foreignKey' => 'checklist_template_id',
+            'className' => 'ChecklistTemplate',
+        ]);
+        $this->belongsTo('ChecklistTemplateVersions', [
+            'foreignKey' => 'checklist_template_version_id',
+            'className' => 'ChecklistTemplateVersion',
+        ]);
+        $this->belongsTo('Inspectors', [
+            'foreignKey' => 'inspector_id',
+            'className' => 'UserAccount',
+        ]);
+        $this->hasMany('InspectionItem', [
             'foreignKey' => 'inspection_id',
-            'className' => 'Inspection',
-            'joinType' => 'INNER',
-        ]);
-        $this->belongsTo('ItemMasters', [
-            'foreignKey' => 'item_master_id',
-            'className' => 'ItemMaster',
-        ]);
-        $this->belongsTo('TemplateItems', [
-            'foreignKey' => 'template_item_id',
-            'className' => 'TemplateItem',
-        ]);
-        $this->belongsTo('CalibrationRecords', [
-            'foreignKey' => 'calibration_record_id',
-            'className' => 'CalibrationRecord',
-        ]);
-        $this->hasMany('NonConformity', [
-            'foreignKey' => 'inspection_item_id',
         ]);
     }
-
-    /**
-     * Default validation rules.
-     *
-     * @param \Cake\Validation\Validator $validator Validator instance.
-     * @return \Cake\Validation\Validator
-     */
     public function validationDefault(Validator $validator): Validator
     {
         $validator
@@ -97,11 +71,12 @@ class InspectionItemTable extends Table
             ->integer('ordem')
             ->allowEmptyString('ordem');
 
+        // Ajuste: codigo_item_snapshot não é mais obrigatório na criação via API batch.
+        // Se a regra de negócio exigir, reforce no frontend para enviar esse campo.
         $validator
             ->scalar('codigo_item_snapshot')
             ->maxLength('codigo_item_snapshot', 100)
-            ->requirePresence('codigo_item_snapshot', 'create')
-            ->notEmptyString('codigo_item_snapshot');
+            ->allowEmptyString('codigo_item_snapshot');
 
         $validator
             ->scalar('titulo_snapshot')
@@ -129,6 +104,7 @@ class InspectionItemTable extends Table
             ->boolean('is_nsa')
             ->allowEmptyString('is_nsa');
 
+        // Observação: O nome do campo no modelo é 'measured_value' — certifique-se de enviar este campo do frontend.
         $validator
             ->scalar('measured_value')
             ->maxLength('measured_value', 255)
@@ -165,13 +141,6 @@ class InspectionItemTable extends Table
         return $validator;
     }
 
-    /**
-     * Returns a rules checker object that will be used for validating
-     * application integrity.
-     *
-     * @param \Cake\ORM\RulesChecker $rules The rules object to be modified.
-     * @return \Cake\ORM\RulesChecker
-     */
     public function buildRules(RulesChecker $rules): RulesChecker
     {
         $rules->add($rules->existsIn(['inspection_id'], 'Inspections'), ['errorField' => 'inspection_id']);

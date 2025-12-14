@@ -1,126 +1,155 @@
-// src/components/inspection/StartPhase.jsx (Estilizado e Corrigido)
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import InspectionService from '../../services/InspectionService';
-import { useAuth } from '../../context/AuthContext';
 
 const StartPhase = ({ onComplete, user, inspectionData }) => {
-    // ... (Lógica e States mantidos)
-    const [items, setItems] = useState([]);
-    const [selectedItemId, setSelectedItemId] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [fetchError, setFetchError] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [loadingLists, setLoadingLists] = useState(true);
+    const [error, setError] = useState(null);
+    const [validationDetails, setValidationDetails] = useState(null);
 
-    const { user: authUser } = useAuth();
-    const currentUserId = user?.id || authUser?.id;
+    const [checklistTemplates, setChecklistTemplates] = useState([]);
+    const [itemMasters, setItemMasters] = useState([]);
 
-    // 1. Fetch ItemMasters na montagem
-    useEffect(() => {
-        const fetchItems = async () => {
-            setLoading(true);
-            try {
-                // Chama a função corrigida que agora trata corretamente a paginação
-                const masters = await InspectionService.getAllItemMasters();
-                
-                // Debug log para confirmar se os dados estão chegando
-                console.log("Itens Mestre Recebidos:", masters); 
-                
-                setItems(masters);
-                
-            } catch (err) {
-                // O erro de fetch agora pega o erro do InspectionService (incluindo erro de parsing)
-                setFetchError("Falha ao carregar lista de itens mestre. Verifique o console e a rota /item-master/index.json");
-                console.error(err);
-            } finally {
-                setLoading(false);
+    const [selectedChecklistId, setSelectedChecklistId] = useState(inspectionData.checklistTemplateId || '');
+    const [selectedItemMasterId, setSelectedItemMasterId] = useState(inspectionData.itemMasterId || '');
+
+    const loadLists = async () => {
+        setLoadingLists(true);
+        setError(null);
+        try {
+            const [templates, items] = await Promise.all([
+                InspectionService.getAllChecklistTemplates(),
+                InspectionService.getAllItemMasters()
+            ]);
+            setChecklistTemplates(templates || []);
+            setItemMasters(items || []);
+            if ((!templates || templates.length === 0) && (!items || items.length === 0)) {
+                setError('Nenhum checklist nem item mestre retornado pelo servidor.');
             }
-        };
-        fetchItems();
+        } catch (err) {
+            console.error('Erro ao carregar listas para StartPhase:', err);
+            // Mostramos info útil ao usuário e logs no console
+            const serverInfo = err && err.responseData ? err.responseData : err.message;
+            setError('Não foi possível carregar Checklists. Verifique console e tente novamente.');
+            console.debug('Detalhe do erro ao carregar Checklists:', serverInfo);
+        } finally {
+            setLoadingLists(false);
+        }
+    };
+
+    useEffect(() => {
+        loadLists();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleStart = async () => {
-        if (!selectedItemId || loading || !currentUserId) return;
-
         setLoading(true);
-        setFetchError(null);
-
-        const selectedItem = items.find(i => i.id === selectedItemId);
-        if (!selectedItem) return;
+        setError(null);
+        setValidationDetails(null);
 
         try {
-            const inspectionDataPayload = {
-                item_master_id: selectedItem.id,
-                inspector_id: currentUserId,
-                status: 'EM_ANDAMENTO',
-                checklist_template_id: selectedItem.checklist_id || 'DEFAULT_TEMPLATE_ID',
+            const payload = {
+                checklist_template_id: selectedChecklistId,
+                inspector_id: user?.id || null,
+                item_master_id: selectedItemMasterId || null,
+                origem: 'FRONTEND',
             };
 
-            const newInspectionResponse = await InspectionService.createInspection(inspectionDataPayload);
-            
-            // 🚨 CORREÇÃO APLICADA: Busca o ID no objeto retornado da API
-            // Tenta newInspectionResponse.inspection.id (se a API empacotar)
-            // Tenta newInspectionResponse.id (se a API retornar a entidade direta)
-            const createdInspectionId = newInspectionResponse.inspection?.id || newInspectionResponse.id;
+            const created = await InspectionService.createInspection(payload);
 
-            if (!createdInspectionId) {
-                throw new Error("ID da nova inspeção não foi retornado pela API.");
+            if (!created || !created.id) {
+                throw new Error('Resposta inesperada do servidor ao criar inspeção.');
             }
 
             onComplete({
-                itemMasterId: selectedItem.id,
-                checklistTemplateId: inspectionDataPayload.checklist_template_id,
-                inspectionId: createdInspectionId,
+                inspectionId: created.id,
+                checklistTemplateId: selectedChecklistId,
+                itemMasterId: selectedItemMasterId || null,
             });
-
-        } catch (error) {
-            setFetchError(`Erro ao iniciar inspeção: ${error.message}`);
-            console.error(error);
+        } catch (err) {
+            console.error('Erro ao iniciar inspeção:', err);
+            setError(err.message || 'Erro ao iniciar inspeção.');
+            if (err.responseData) {
+                console.debug('responseData:', err.responseData);
+            }
+            if (err.validationErrors) {
+                setValidationDetails(err.validationErrors);
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    if (loading) return <div className="text-gray-400">Carregando Itens Mestre...</div>;
-    if (fetchError) return <div className="p-3 text-sm text-red-400 bg-red-900/30 border border-red-800 rounded-lg">{fetchError}</div>;
-
     return (
-        <div className="start-phase space-y-6">
-            <h2 className="text-xl font-semibold text-white">1. Seleção do Item de Inspeção</h2>
-            {/* 🚨 Estilo do Select (Input escuro com borda vermelha no foco) */}
-            <select
-                onChange={(e) => setSelectedItemId(e.target.value)}
-                value={selectedItemId || ''}
-                className="w-full p-3 text-base bg-gray-900 text-white border border-gray-700 rounded-lg focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all appearance-none"
-            >
-                <option value="" disabled className="text-gray-500">
-                    Selecione o Produto/Peça ({items.length} disponíveis)
-                </option>
-                {items.length > 0 ? (
-                    items.map(item => (
-                        <option key={item.id} value={item.id} className="bg-gray-900 text-white">
-                            {/* 🚨 CORREÇÃO DE EXIBIÇÃO: Garante o acesso aos campos da entidade */}
-                            {item.codigo_item} - {item.titulo || 'Sem Título'} (ID: {item.id})
-                        </option>
-                    ))
-                ) : (
-                    <option disabled className="text-gray-500">Nenhum item mestre encontrado.</option>
-                )}
-            </select>
+        <div className="start-phase space-y-4">
+            <h2 className="text-xl font-bold text-white">Iniciar Inspeção</h2>
 
-            {/* 🚨 Estilo do Botão (Botão vermelho da tela de login) */}
-            <button
-                onClick={handleStart}
-                disabled={!selectedItemId || loading}
-                className="w-full flex justify-center items-center px-4 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-red-900 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-300"
-            >
-                {loading ? (
-                    <>
-                        <div className="w-4 h-4 border-2 border-white border-t-red-200 rounded-full animate-spin mr-2"></div>
-                        Criando Inspeção...
-                    </>
-                ) : (
-                    'Iniciar Inspeção (Próxima Fase)'
-                )}
-            </button>
+            {loadingLists ? (
+                <div className="text-gray-400">Carregando opções...</div>
+            ) : (
+                <>
+                    {error && (
+                        <div className="p-3 mb-2 bg-red-900/30 text-red-200 rounded">
+                            <div><strong>Erro:</strong> {error}</div>
+                            <div className="mt-2 text-sm text-gray-300">Tente recarregar as opções. Se o problema persistir, verifique o servidor (consulte o console para detalhes).</div>
+                            <div className="mt-2">
+                                <button onClick={loadLists} className="px-3 py-1 bg-gray-700 rounded text-white">Tentar novamente</button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-sm text-gray-300 mb-1">Checklist Template</label>
+                        <select
+                            value={selectedChecklistId}
+                            onChange={(e) => setSelectedChecklistId(e.target.value)}
+                            className="w-full p-2 rounded bg-gray-900 text-white border border-gray-700"
+                        >
+                            <option value="">-- Selecione um Checklist --</option>
+                            {checklistTemplates.map(t => (
+                                <option key={t.id} value={t.id}>
+                                    {t.titulo || t.nome || t.name || t.title || (`${t.id}`)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-gray-300 mb-1">Item Mestre (opcional)</label>
+                        <select
+                            value={selectedItemMasterId}
+                            onChange={(e) => setSelectedItemMasterId(e.target.value)}
+                            className="w-full p-2 rounded bg-gray-900 text-white border border-gray-700"
+                        >
+                            <option value="">-- Selecionar Item Mestre (opcional) --</option>
+                            {itemMasters.map(it => (
+                                <option key={it.id} value={it.id}>
+                                    {it.titulo || it.nome || it.title || it.codigo_item_snapshot || (`${it.id}`)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                        <button
+                            onClick={handleStart}
+                            disabled={loading || !selectedChecklistId}
+                            className="px-4 py-2 bg-red-600 rounded text-white disabled:opacity-50"
+                        >
+                            {loading ? 'Iniciando...' : 'Iniciar Inspeção'}
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {validationDetails && (
+                <div className="p-3 mt-2 bg-yellow-900/20 text-yellow-100 rounded">
+                    <strong>Detalhes de validação:</strong>
+                    <pre className="text-xs mt-2 overflow-auto" style={{ maxHeight: 200 }}>
+                        {JSON.stringify(validationDetails, null, 2)}
+                    </pre>
+                </div>
+            )}
         </div>
     );
 };

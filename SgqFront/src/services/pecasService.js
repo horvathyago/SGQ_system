@@ -113,10 +113,16 @@ const InspectionService = {
     },
 
     getTemplateItems: async (checklistId, phaseId) => {
-        let query = '';
-        if (checklistId) query += `checklist_id=${checklistId}`;
-        if (phaseId) query += `${query ? '&' : ''}phase_id=${phaseId}`;
-        const endpoint = query ? `/index.json?${query}` : '/index.json';
+        // 🚨 CORREÇÃO DE ROBUSTEZ: Usar URLSearchParams para codificar os parâmetros de forma segura.
+        const params = new URLSearchParams();
+        if (checklistId) params.append('checklist_id', checklistId);
+        if (phaseId) params.append('phase_id', phaseId);
+        
+        const endpoint = params.toString() ? `/index.json?${params.toString()}` : '/index.json';
+        
+        // Log detalhado para debug da requisição
+        console.debug(`[InspectionService] Fetching TemplateItems: template-item${endpoint}`);
+        
         const data = await request('template-item', endpoint);
         return data.templateItem || data.templateItems || data.data || [];
     },

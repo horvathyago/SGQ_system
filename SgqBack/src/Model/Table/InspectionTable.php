@@ -8,37 +8,8 @@ use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
-/**
- * Inspection Model
- *
- * @property \App\Model\Table\ProductionOrderTable&\Cake\ORM\Association\BelongsTo $ProductionOrders
- * @property \App\Model\Table\ChecklistTemplateTable&\Cake\ORM\Association\BelongsTo $ChecklistTemplates
- * @property \App\Model\Table\ChecklistTemplateVersionTable&\Cake\ORM\Association\BelongsTo $ChecklistTemplateVersions
- * @property \App\Model\Table\UserAccountTable&\Cake\ORM\Association\BelongsTo $Inspectors
- * @property \App\Model\Table\InspectionItemTable&\Cake\ORM\Association\HasMany $InspectionItem
- *
- * @method \App\Model\Entity\Inspection newEmptyEntity()
- * @method \App\Model\Entity\Inspection newEntity(array $data, array $options = [])
- * @method array<\App\Model\Entity\Inspection> newEntities(array $data, array $options = [])
- * @method \App\Model\Entity\Inspection get(mixed $primaryKey, array|string $finder = 'all', \Psr\SimpleCache\CacheInterface|string|null $cache = null, \Closure|string|null $cacheKey = null, mixed ...$args)
- * @method \App\Model\Entity\Inspection findOrCreate($search, ?callable $callback = null, array $options = [])
- * @method \App\Model\Entity\Inspection patchEntity(\Cake\Datasource\EntityInterface $entity, array $data, array $options = [])
- * @method array<\App\Model\Entity\Inspection> patchEntities(iterable $entities, array $data, array $options = [])
- * @method \App\Model\Entity\Inspection|false save(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method \App\Model\Entity\Inspection saveOrFail(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method iterable<\App\Model\Entity\Inspection>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\Inspection>|false saveMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\Inspection>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\Inspection> saveManyOrFail(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\Inspection>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\Inspection>|false deleteMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\Inspection>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\Inspection> deleteManyOrFail(iterable $entities, array $options = [])
- */
 class InspectionTable extends Table
 {
-    /**
-     * Initialize method
-     *
-     * @param array<string, mixed> $config The configuration for the Table.
-     * @return void
-     */
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -46,6 +17,20 @@ class InspectionTable extends Table
         $this->setTable('inspection');
         $this->setDisplayField('id');
         $this->setPrimaryKey('id');
+
+        // -------------------------
+        // Timestamp behavior
+        // -------------------------
+        // Garante que created_at e updated_at sejam preenchidos automaticamente.
+        // Caso seu projeto use nomes diferentes, ajuste o mapeamento abaixo.
+        $this->addBehavior('Timestamp', [
+            'events' => [
+                'Model.beforeSave' => [
+                    'created_at' => 'new',
+                    'updated_at' => 'always'
+                ]
+            ]
+        ]);
 
         $this->belongsTo('ProductionOrders', [
             'foreignKey' => 'production_order_id',
