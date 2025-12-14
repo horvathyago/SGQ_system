@@ -1,6 +1,4 @@
-/**
- * src/services/InspectionService.js
- */
+// src/services/InspectionService.js
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -34,13 +32,7 @@ const request = async (controllerName, endpoint, options = {}) => {
 
         if (!response.ok) {
             const errorMessage = data.message || `Erro HTTP: ${response.status} ${response.statusText}`;
-            const error = new Error(errorMessage);
-            error.responseData = data;
-            if (response.status === 422 && data.errors) {
-                error.validationErrors = data.errors;
-            }
-            error.status = response.status;
-            throw error;
+            throw new Error(errorMessage);
         }
 
         return data;
@@ -55,43 +47,52 @@ const InspectionService = {
     getAllItemMasters: async () => {
         const data = await request('item-master', '/index.json');
         if (Array.isArray(data)) return data;
+        // Tratamento para payload paginado do CakePHP
         return data.itemMaster || data.itemMasters || data.data || [];
     },
 
     getAllChecklistTemplates: async () => {
         try {
             const data = await request('checklist-template', '/index.json');
-            // Normalização de retorno do CakePHP (pode vir paginado ou não)
             if (Array.isArray(data)) return data;
-            if (Array.isArray(data.checklistTemplate)) return data.checklistTemplate;
-            if (Array.isArray(data.checklistTemplates)) return data.checklistTemplates;
-            if (Array.isArray(data.items)) return data.items;
-            return [];
+            return data.checklistTemplate || data.checklistTemplates || data.items || data.data || [];
         } catch (err) {
-            console.warn('Erro ao buscar templates, tentando endpoint plural...', err);
-            // Fallback
+            console.warn('Erro ao buscar templates:', err);
             return [];
         }
     },
 
-    // Retorna as definições do template (o que deve ser inspecionado)
+    // Retorna as definições do template
     getTemplateItems: async (checklistId, phaseId) => {
         let query = `checklist_id=${checklistId}`;
         if (phaseId) query += `&phase_id=${phaseId}`;
         
-        const data = await request('template-item', `/index.json?${query}`);
-        // Normalização
-        return data.templateItems || data.templateItem || data.data || [];
+        try {
+            const data = await request('template-item', `/index.json?${query}`);
+            
+            // DEBUG: Verifique se o backend está retornando { templateItems: [...] } ou direto [...]
+            if (Array.isArray(data)) return data;
+            return data.templateItems || data.templateItem || data.data || [];
+        } catch (error) {
+            console.error("Erro ao buscar itens do template:", error);
+            return [];
+        }
     },
 
-    // Retorna os itens JÁ salvos (resultados)
+    // Retorna os itens JÁ salvos
     getInspectionItems: async (inspectionId, phaseId = null) => {
         const params = new URLSearchParams();
         if (inspectionId) params.append('inspection_id', inspectionId);
         if (phaseId) params.append('phase_id', phaseId);
         
-        const data = await request('inspection-item', `/index.json?${params.toString()}`);
-        return data.inspectionItems || data.inspectionItem || data.data || [];
+        try {
+            const data = await request('inspection-item', `/index.json?${params.toString()}`);
+            if (Array.isArray(data)) return data;
+            return data.inspectionItems || data.inspectionItem || data.data || [];
+        } catch (error) {
+            console.error("Erro ao buscar itens salvos:", error);
+            return [];
+        }
     },
 
     createInspection: async (inspectionData) => {
@@ -110,16 +111,10 @@ const InspectionService = {
         return data.inspection || data;
     },
 
-    // Salva resultados em Batch
     saveInspectionItemResults: async (itemResults) => {
-        // Pequena normalização para garantir que o backend receba booleanos corretos
         const normalized = itemResults.map(r => ({
             ...r,
             is_ok: r.is_ok === true || r.is_ok === 'true', 
-            // Garante que o ID seja enviado se for uma edição, ou removido se for criação nova (embora o add() geralmente trate criação)
-            // No caso do InspectionItemController::add batch, ele cria novos. 
-            // Para edição em massa, o ideal seria deletar e recriar ou ter lógica de upsert no backend.
-            // Assumindo aqui estratégia de "Upsert" ou que o backend trata duplicidade.
         }));
 
         return await request('inspection-item', '/add.json', {
