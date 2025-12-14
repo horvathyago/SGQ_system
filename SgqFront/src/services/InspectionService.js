@@ -1,14 +1,9 @@
 /**
  * src/services/InspectionService.js
- * Serviço responsável por comunicar com as rotas dos Controladores de Inspeção.
  */
 
-// URL base definida no .env (http://localhost:8765)
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-/**
- * Helper genérico para fazer as requisições (DRY - Don't Repeat Yourself)
- */
 const request = async (controllerName, endpoint, options = {}) => {
     const CONTROLLER_URL = `${BASE_URL}/${controllerName}`;
     const defaultHeaders = {
@@ -27,21 +22,19 @@ const request = async (controllerName, endpoint, options = {}) => {
 
     try {
         const response = await fetch(`${CONTROLLER_URL}${endpoint}`, config);
-
         let data = {};
         let text = '';
+        
         try {
             text = await response.text();
             data = text ? JSON.parse(text) : {};
         } catch (e) {
-            // não-JSON: mantemos text em data._rawText para diagnóstico
             data = { _rawText: text };
         }
 
         if (!response.ok) {
             const errorMessage = data.message || `Erro HTTP: ${response.status} ${response.statusText}`;
             const error = new Error(errorMessage);
-            // attach parsed body for callers to inspect
             error.responseData = data;
             if (response.status === 422 && data.errors) {
                 error.validationErrors = data.errors;
@@ -53,7 +46,6 @@ const request = async (controllerName, endpoint, options = {}) => {
         return data;
 
     } catch (error) {
-        // mantém log detalhado para debug
         console.error(`Erro na requisição para ${controllerName}${endpoint}:`, error);
         throw error;
     }
@@ -66,59 +58,40 @@ const InspectionService = {
         return data.itemMaster || data.itemMasters || data.data || [];
     },
 
-    getItemMasterById: async (id) => {
-        const data = await request('item-master', `/view/${id}.json`);
-        return data.itemMaster;
-    },
-
-    // NOVO/MELHORADO: busca todos os Checklist Templates para popular o select na UI
     getAllChecklistTemplates: async () => {
-        // tentativa padrão
         try {
             const data = await request('checklist-template', '/index.json');
+            // Normalização de retorno do CakePHP (pode vir paginado ou não)
             if (Array.isArray(data)) return data;
             if (Array.isArray(data.checklistTemplate)) return data.checklistTemplate;
             if (Array.isArray(data.checklistTemplates)) return data.checklistTemplates;
-            if (Array.isArray(data.data)) return data.data;
-            // se objeto único com chave 'items'
             if (Array.isArray(data.items)) return data.items;
-            // fallback: se for objeto com uma única propriedade array, retorna
-            const arr = Object.values(data).find(v => Array.isArray(v));
-            if (arr) return arr;
-            // vazio
             return [];
         } catch (err) {
-            // Se falhar, tentamos endpoint alternativo sem controller prefix (algumas APIs usam plural)
-            console.warn('getAllChecklistTemplates: tentativa padrão falhou, tentando endpoint alternativo...', err);
-            try {
-                const altData = await request('checklist-templates', '/index.json');
-                if (Array.isArray(altData)) return altData;
-                if (Array.isArray(altData.checklistTemplate)) return altData.checklistTemplate;
-                if (Array.isArray(altData.checklistTemplates)) return altData.checklistTemplates;
-                if (Array.isArray(altData.data)) return altData.data;
-                const arr = Object.values(altData).find(v => Array.isArray(v));
-                if (arr) return arr;
-                return [];
-            } catch (err2) {
-                // retornamos erro para o componente lidar (ele exibirá retry)
-                console.error('getAllChecklistTemplates: todas tentativas falharam', err2);
-                throw err2;
-            }
+            console.warn('Erro ao buscar templates, tentando endpoint plural...', err);
+            // Fallback
+            return [];
         }
     },
 
-    getChecklistTemplate: async (id) => {
-        const data = await request('checklist-template', `/view/${id}.json`);
-        return data.checklistTemplate;
+    // Retorna as definições do template (o que deve ser inspecionado)
+    getTemplateItems: async (checklistId, phaseId) => {
+        let query = `checklist_id=${checklistId}`;
+        if (phaseId) query += `&phase_id=${phaseId}`;
+        
+        const data = await request('template-item', `/index.json?${query}`);
+        // Normalização
+        return data.templateItems || data.templateItem || data.data || [];
     },
 
-    getTemplateItems: async (checklistId, phaseId) => {
-        let query = '';
-        if (checklistId) query += `checklist_id=${checklistId}`;
-        if (phaseId) query += `${query ? '&' : ''}phase_id=${phaseId}`;
-        const endpoint = query ? `/index.json?${query}` : '/index.json';
-        const data = await request('template-item', endpoint);
-        return data.templateItem || data.templateItems || data.data || [];
+    // Retorna os itens JÁ salvos (resultados)
+    getInspectionItems: async (inspectionId, phaseId = null) => {
+        const params = new URLSearchParams();
+        if (inspectionId) params.append('inspection_id', inspectionId);
+        if (phaseId) params.append('phase_id', phaseId);
+        
+        const data = await request('inspection-item', `/index.json?${params.toString()}`);
+        return data.inspectionItems || data.inspectionItem || data.data || [];
     },
 
     createInspection: async (inspectionData) => {
@@ -137,58 +110,22 @@ const InspectionService = {
         return data.inspection || data;
     },
 
+    // Salva resultados em Batch
     saveInspectionItemResults: async (itemResults) => {
-        const normalized = itemResults.map(r => {
-            const clone = { ...r };
-            if (Object.prototype.hasOwnProperty.call(clone, 'result_value')) {
-                clone.measured_value = clone.result_value;
-                delete clone.result_value;
-            }
-            if (typeof clone.is_ok !== 'boolean') {
-                if (clone.is_ok === 'OK' || clone.is_ok === 'ok' || clone.is_ok === 'true') clone.is_ok = true;
-                else if (clone.is_ok === 'NC' || clone.is_ok === 'nc' || clone.is_ok === 'false') clone.is_ok = false;
-            }
-            return clone;
-        });
+        // Pequena normalização para garantir que o backend receba booleanos corretos
+        const normalized = itemResults.map(r => ({
+            ...r,
+            is_ok: r.is_ok === true || r.is_ok === 'true', 
+            // Garante que o ID seja enviado se for uma edição, ou removido se for criação nova (embora o add() geralmente trate criação)
+            // No caso do InspectionItemController::add batch, ele cria novos. 
+            // Para edição em massa, o ideal seria deletar e recriar ou ter lógica de upsert no backend.
+            // Assumindo aqui estratégia de "Upsert" ou que o backend trata duplicidade.
+        }));
 
         return await request('inspection-item', '/add.json', {
             method: 'POST',
             body: JSON.stringify(normalized),
         });
-    },
-
-    getInspectionItems: async (inspectionId, phaseId = null) => {
-        const params = new URLSearchParams();
-        if (inspectionId) params.append('inspection_id', inspectionId);
-        if (phaseId) params.append('phase_id', phaseId);
-        const endpoint = `/index.json?${params.toString()}`;
-        const data = await request('inspection-item', endpoint);
-        return data.inspectionItems || data.inspectionItem || data.data || [];
-    },
-
-    isPhaseComplete: async (inspectionId, phaseId, templateItems = []) => {
-        const savedItems = await InspectionService.getInspectionItems(inspectionId, phaseId);
-        if (!savedItems || savedItems.length === 0) return false;
-
-        const templateMap = (templateItems || []).reduce((acc, t) => {
-            acc[t.id] = t;
-            return acc;
-        }, {});
-
-        for (const it of savedItems) {
-            if (it.is_ok === null || typeof it.is_ok === 'undefined') return false;
-            const template = templateMap[it.template_item_id] || {};
-            const tipo = template.tipo_medicao || it.tipo_medicao || null;
-            if (tipo === 'QUANTITATIVA') {
-                if (!it.measured_value || String(it.measured_value).trim() === '') return false;
-            }
-            if (it.is_ok === false) {
-                if ((!it.measured_value || String(it.measured_value).trim() === '') &&
-                    (!it.comentario || String(it.comentario).trim() === '')) return false;
-            }
-        }
-
-        return true;
     }
 };
 

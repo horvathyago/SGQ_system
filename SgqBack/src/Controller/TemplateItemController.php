@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use Cake\Http\Response; // Importação essencial para tipagem
+use Cake\Http\Response;
 use Cake\Datasource\Exception\RecordNotFoundException;
 use Cake\I18n\FrozenTime;
 use Cake\View\JsonView;
@@ -16,6 +16,9 @@ use Cake\View\JsonView;
  */
 class TemplateItemController extends AppController
 {
+    /**
+     * Define que este controller suporta respostas JSON nativas do CakePHP.
+     */
     public function viewClasses(): array
     {
         return [JsonView::class];
@@ -24,43 +27,58 @@ class TemplateItemController extends AppController
     public function initialize(): void
     {
         parent::initialize();
-        $this->loadComponent('RequestHandler');
+        
+        // Configura a classe da View para Json
         $this->viewBuilder()->setClassName('Json');
 
-        // Remove o FlashComponent, pois ele é inútil em API
-        $this->components()->has('Flash') ? $this->components()->unload('Flash') : null;
+        // REMOVIDO: $this->loadComponent('RequestHandler'); 
+        // A lógica de negociação de view agora é feita via viewClasses e Accept header.
 
-        // Garante a injeção do modelo (já estava correto)
+        // Remove o FlashComponent se estiver carregado, pois não é útil em API Stateless
+        if ($this->components()->has('Flash')) {
+            $this->components()->unload('Flash');
+        }
+
         $this->TemplateItem = $this->fetchTable('TemplateItem');
     }
-    
-    // O método privado _detectDisplayField e a lógica de carregamento de listas para views
-    // foram removidos daqui, pois não são apropriados para controladores de API.
 
     /**
      * Rota: GET /template-item
-     * Lista todos os Itens de Template.
+     * Suporta query params: checklist_id, phase_id
      */
     public function index(): ?Response
     {
+        $checklistId = $this->request->getQuery('checklist_id');
+        $phaseId = $this->request->getQuery('phase_id');
+
         $query = $this->TemplateItem->find()
             ->contain(['ChecklistTemplate', 'ItemMaster'])
             ->order(['TemplateItem.ordem' => 'ASC']);
 
-        $templateItem = $this->paginate($query, ['limit' => 25]);
-        $this->set(compact('templateItem'));
-        $this->viewBuilder()->setOption('serialize', 'templateItem');
+        if ($checklistId) {
+            $query->where(['TemplateItem.checklist_template_id' => $checklistId]);
+        }
+        
+        if ($phaseId) {
+            $query->where(['TemplateItem.phase_id' => $phaseId]);
+        }
+
+        // Paginação ou lista completa dependendo da necessidade. 
+        // Para API de checklist, geralmente queremos todos os itens da fase sem paginação estrita,
+        // mas mantemos paginate para consistência. Aumentei o limite.
+        $templateItems = $this->paginate($query, ['limit' => 100]);
+        
+        $this->set(compact('templateItems'));
+        $this->viewBuilder()->setOption('serialize', 'templateItems');
         return null;
     }
 
     /**
      * Rota: GET /template-item/{id}
-     * Visualiza um Item de Template específico.
      */
     public function view(string $id = null): ?Response
     {
         try {
-            // O check 'if (!$id)' é resolvido pela exceção get() se o ID for inválido
             $templateItem = $this->TemplateItem->get($id, [
                 'contain' => ['ChecklistTemplate', 'ItemMaster', 'InspectionItem'],
             ]);
@@ -76,7 +94,6 @@ class TemplateItemController extends AppController
 
     /**
      * Rota: POST /template-item
-     * Cria um novo Item de Template.
      */
     public function add(): ?Response
     {
@@ -85,7 +102,6 @@ class TemplateItemController extends AppController
         $templateItem = $this->TemplateItem->newEmptyEntity();
         $data = $this->request->getData();
 
-        // created_at: se não vier, gera automaticamente
         if (empty($data['created_at'])) {
             $data['created_at'] = FrozenTime::now();
         }
@@ -98,29 +114,26 @@ class TemplateItemController extends AppController
                 'message' => 'Template item salvo com sucesso.',
             ]);
             $this->viewBuilder()->setOption('serialize', ['templateItem', 'message']);
-            $this->response = $this->response->withStatus(201); // 201 Created
+            $this->response = $this->response->withStatus(201);
         } else {
-            // Erro de validação
             $this->set([
                 'message' => 'Erro de validação ao salvar template item.',
                 'errors' => $templateItem->getErrors(),
             ]);
             $this->viewBuilder()->setOption('serialize', ['message', 'errors']);
-            $this->response = $this->response->withStatus(422); // 422 Unprocessable Entity
+            $this->response = $this->response->withStatus(422);
         }
         return null;
     }
 
     /**
      * Rota: PUT/PATCH /template-item/{id}
-     * Edita um Item de Template existente.
      */
     public function edit(string $id = null): ?Response
     {
         $this->request->allowMethod(['patch', 'put']);
 
         try {
-            // O check 'if (!$id)' é resolvido pela exceção get() se o ID for inválido
             $templateItem = $this->TemplateItem->get($id);
         } catch (RecordNotFoundException $e) {
             $this->response = $this->response->withStatus(404);
@@ -138,9 +151,8 @@ class TemplateItemController extends AppController
                 'message' => 'Template item atualizado com sucesso.',
             ]);
             $this->viewBuilder()->setOption('serialize', ['templateItem', 'message']);
-            $this->response = $this->response->withStatus(200); // 200 OK
+            $this->response = $this->response->withStatus(200);
         } else {
-            // Erro de validação
             $this->set([
                 'message' => 'Erro de validação ao atualizar.',
                 'errors' => $templateItem->getErrors(),
@@ -153,22 +165,20 @@ class TemplateItemController extends AppController
 
     /**
      * Rota: DELETE /template-item/{id}
-     * Deleta um Item de Template.
      */
     public function delete(string $id = null): ?Response
     {
         $this->request->allowMethod(['delete']);
 
         try {
-            // O check 'if (!$id)' é resolvido pela exceção get() se o ID for inválido
             $templateItem = $this->TemplateItem->get($id);
         } catch (RecordNotFoundException $e) {
-            $this->response = $this->response->withStatus(204); // 204 No Content (Já removido)
+            $this->response = $this->response->withStatus(204);
             return null;
         }
 
         if ($this->TemplateItem->delete($templateItem)) {
-            $this->response = $this->response->withStatus(204); // 204 No Content (Sucesso)
+            $this->response = $this->response->withStatus(204);
         } else {
             $this->response = $this->response->withStatus(500);
             $this->set(['message' => 'Não foi possível remover o template item.']);
