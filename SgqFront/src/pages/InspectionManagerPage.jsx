@@ -1,6 +1,7 @@
 // src/pages/InspectionManagerPage.jsx
 import React, { useState, useCallback, useMemo } from 'react';
-import { useAuth } from '../context/AuthContext'; // Assumindo existência
+import { useAuth } from '../context/AuthContext'; 
+import Sidebar from '../components/Dashboard/Sidebar'; // 1. Importar a Sidebar
 import StartPhase from '../components/inspection/StartPhase';
 import InspectionPhase from '../components/inspection/InspectionPhase';
 import FinishPhase from '../components/inspection/FinishPhase';
@@ -91,39 +92,48 @@ const InspectionManagerPage = () => {
     }, [currentPhase, nextPhase, inspectionData, user]);
 
     return (
-        <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-8 font-sans">
-            <div className="max-w-5xl mx-auto">
-                {/* Header da Inspeção */}
-                <header className="mb-8 bg-gray-800 p-6 rounded-xl shadow-lg border-l-8 border-red-600 flex justify-between items-center flex-wrap gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-white">{currentPhase.name}</h1>
-                        <p className="text-gray-400 text-sm mt-1">
-                            Sistema de Gestão de Qualidade Integrada
-                        </p>
-                    </div>
+        // 2. Layout Flex Container (Igual ao Dashboard/NC Page)
+        <div className="min-h-screen flex bg-neutral-900 text-gray-100 font-sans">
+            
+            {/* 3. Inserção da Sidebar fixa à esquerda */}
+            <Sidebar />
+
+            {/* 4. Área de Conteúdo Principal (Cresce para ocupar o resto da tela) */}
+            <div className="flex-1 p-6 overflow-y-auto h-screen">
+                <div className="max-w-5xl mx-auto">
                     
-                    <div className="text-right">
-                        {inspectionData.inspectionId && (
-                            <div className="bg-gray-700 px-4 py-2 rounded-lg mb-2">
-                                <span className="text-xs text-gray-400 uppercase tracking-wider block">ID Inspeção</span>
-                                <span className="font-mono text-xl text-red-400 font-bold">#{inspectionData.inspectionId}</span>
-                            </div>
-                        )}
-                        <div className="text-sm font-medium text-gray-400">
-                            Etapa <span className="text-white">{currentPhaseIndex + 1}</span> de {PHASES_LIST.length}
+                    {/* Header da Inspeção (Mantido o estilo, mas agora dentro do container fluido) */}
+                    <header className="mb-8 bg-gray-800 p-6 rounded-xl shadow-lg border-l-8 border-red-600 flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold text-white">{currentPhase.name}</h1>
+                            <p className="text-gray-400 text-sm mt-1">
+                                Sistema de Gestão de Qualidade Integrada
+                            </p>
                         </div>
-                    </div>
-                </header>
+                        
+                        <div className="text-right">
+                            {inspectionData.inspectionId && (
+                                <div className="bg-gray-700 px-4 py-2 rounded-lg mb-2">
+                                    <span className="text-xs text-gray-400 uppercase tracking-wider block">ID Inspeção</span>
+                                    <span className="font-mono text-xl text-red-400 font-bold">#{inspectionData.inspectionId}</span>
+                                </div>
+                            )}
+                            <div className="text-sm font-medium text-gray-400">
+                                Etapa <span className="text-white">{currentPhaseIndex + 1}</span> de {PHASES_LIST.length}
+                            </div>
+                        </div>
+                    </header>
 
-                {/* Área de Conteúdo da Fase */}
-                <main className="transition-all duration-500 ease-in-out">
-                    {renderPhaseContent}
-                </main>
+                    {/* Área de Conteúdo da Fase (Start, Checklist, Finish) */}
+                    <main className="transition-all duration-500 ease-in-out pb-10">
+                        {renderPhaseContent}
+                    </main>
 
-                {/* Footer */}
-                <footer className="mt-12 text-center text-gray-600 text-xs border-t border-gray-800 pt-4">
-                    &copy; 2025 Engenharia de Qualidade. Todos os direitos reservados.
-                </footer>
+                    {/* Footer interno */}
+                    <footer className="mt-8 text-center text-gray-600 text-xs border-t border-gray-800 pt-4">
+                        &copy; 2025 Engenharia de Qualidade. Todos os direitos reservados.
+                    </footer>
+                </div>
             </div>
         </div>
     );

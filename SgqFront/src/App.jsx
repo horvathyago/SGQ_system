@@ -6,14 +6,11 @@ import PrivateRoute from "./components/routes/PrivateRoute";
 // Importa suas Páginas
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
-import PecasPage from "./pages/PecasPage"; 
-
-
-// NOVO: Importa a página que irá gerenciar o processo de inspeção por fases
 import InspectionManagerPage from "./pages/InspectionManagerPage";
+import NonConformityPage from "./pages/NonConformityPage"; // ✅ Importação Adicionada
 
-// Opcional: import de outras páginas (Itens / Pecas etc.) - deixe comentado se ainda não existir
-// import PecasPage from "./pages/PecasPage";
+// Import opcional (se existir)
+import PecasPage from "./pages/PecasPage"; 
 
 function App() {
   return (
@@ -43,7 +40,18 @@ function App() {
             }
           />
 
-          
+          {/* ✅ NOVA ROTA: Gestão de Não Conformidades */}
+          {/* O path deve bater com o 'to' do Sidebar */}
+          <Route
+            path="/nonconformities"
+            element={
+              <PrivateRoute>
+                <NonConformityPage />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Rota para Peças/Itens */}
           <Route
             path="/pecas"
             element={
@@ -52,10 +60,9 @@ function App() {
               </PrivateRoute>
             }
           />
-          
 
-          {/* Opcional: Rota de 404 */}
-          <Route path="*" element={<div className="p-8">Página Não Encontrada</div>} />
+          {/* Rota de 404 */}
+          <Route path="*" element={<div className="p-8 text-white">Página Não Encontrada</div>} />
         </Routes>
       </AuthProvider>
     </Router>

@@ -65,6 +65,11 @@ return function (RouteBuilder $routes): void {
             'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
         ]);
 
+        $builder->resources('NonConformity', [
+            'only' => ['index', 'view', 'add', 'edit', 'delete'], 
+            'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+        ]);
+
 
         // --- Rotas Padrão do CakePHP ---
 
