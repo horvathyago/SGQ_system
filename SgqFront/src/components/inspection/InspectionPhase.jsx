@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import InspectionService from '../../services/InspectionService';
+import NonConformityService from '../../services/NonConformityService'; // Importação do Service de NC
 
 const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId, onComplete }) => {
     const [items, setItems] = useState([]); 
@@ -16,33 +17,26 @@ const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId
             setLoading(true);
             setError(null);
             
-            // LOG DE DEBUG: Verifique isso no Console do Navegador (F12)
-            console.log(`🔍 [InspectionPhase] Iniciando busca...`);
-            console.log(`   -> Checklist ID: ${checklistTemplateId}`);
-            console.log(`   -> Fase ID: ${phaseId}`);
-            console.log(`   -> Inspection ID: ${inspectionId}`);
-
             try {
                 // 1. Busca Templates (Perguntas)
                 const templates = await InspectionService.getTemplateItems(checklistTemplateId, phaseId);
-                console.log("📋 [InspectionPhase] Templates recebidos:", templates);
 
                 // 2. Busca Resultados Salvos
                 const savedItems = await InspectionService.getInspectionItems(inspectionId, phaseId);
-                console.log("💾 [InspectionPhase] Itens Salvos recebidos:", savedItems);
 
                 if (!Array.isArray(templates)) {
                     throw new Error("A resposta da API de templates não é um array válido.");
                 }
 
-                // 3. Merge
+                // 3. Merge dos dados
                 const mergedItems = templates.map(tmpl => {
                     const saved = Array.isArray(savedItems) ? savedItems.find(s => s.template_item_id === tmpl.id) : null;
                     
                     return {
                         template_item_id: tmpl.id,
                         ordem: tmpl.ordem,
-                        descricao: tmpl.descricao,
+                        // Garante que a descrição nunca seja undefined na visualização
+                        descricao: tmpl.descricao || tmpl.description || `Item #${tmpl.id}`, 
                         metodologia: tmpl.metodologia,
                         rigor_tecnico: tmpl.rigor_tecnico,
                         tipo_medicao: tmpl.tipo_medicao,
@@ -50,7 +44,10 @@ const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId
                         is_ok: saved ? saved.is_ok : null, 
                         result_value: saved ? (saved.measured_value || saved.result_value || '') : '',
                         comentario: saved ? saved.comentario : '',
-                        existing_id: saved ? saved.id : null
+                        existing_id: saved ? saved.id : null,
+                        
+                        // Flag para saber se já estava salvo como NC antes
+                        was_nc: saved ? saved.is_ok === false : false 
                     };
                 });
 
@@ -67,7 +64,6 @@ const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId
         if (checklistTemplateId && inspectionId) {
             fetchData();
         } else {
-            console.warn("⚠️ [InspectionPhase] IDs faltando. Checklist:", checklistTemplateId, "Inspection:", inspectionId);
             setLoading(false);
         }
     }, [checklistTemplateId, phaseId, inspectionId]);
@@ -128,6 +124,7 @@ const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId
         setError(null);
 
         try {
+            // 1. Salva os resultados da inspeção (Lógica Original)
             const payload = items.map(item => ({
                 inspection_id: inspectionId,
                 template_item_id: item.template_item_id,
@@ -137,7 +134,48 @@ const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId
                 ordem: item.ordem
             }));
 
+            // Aguarda o salvamento dos itens de inspeção primeiro
             await InspectionService.saveInspectionItemResults(payload);
+
+            // =====================================================================
+            // 2. INTEGRAÇÃO AUTOMÁTICA COM NC
+            // =====================================================================
+            
+            const ncItems = items.filter(item => item.is_ok === false);
+
+            if (ncItems.length > 0) {
+                console.log(`⚠️ Detectadas ${ncItems.length} não conformidades. Gerando registros...`);
+                
+                // Cria array de promessas para criar as NCs em paralelo
+                const ncPromises = ncItems.map(item => {
+                    
+                    // --- CORREÇÃO DE SEGURANÇA AQUI ---
+                    // Garante que as strings existam antes de manipular
+                    const descSafe = item.descricao ? String(item.descricao) : `Item ID ${item.template_item_id}`;
+                    const valorSafe = item.result_value ? String(item.result_value) : 'Não informado';
+                    const comentSafe = item.comentario ? String(item.comentario) : 'Sem observações';
+                    // ----------------------------------
+
+                    // Monta o objeto da NC baseado no item da inspeção
+                    const ncData = {
+                        // Usa descSafe para evitar erro de .substring em undefined
+                        description: `Falha: ${descSafe.substring(0, 50)}...`, 
+                        details: `[Gerado Automaticamente via Inspeção #${inspectionId}]\n\nItem: ${descSafe}\nValor Medido: ${valorSafe}\nObservação do Inspetor: ${comentSafe}\nFase: ${phaseName}`,
+                        status: 'Open',
+                        severity: 'Medium', 
+                        inspection_item_id: item.existing_id || null, 
+                        responsavel_id: null 
+                    };
+
+                    return NonConformityService.create(ncData)
+                        .catch(err => console.error("Erro ao criar NC automática:", err));
+                });
+
+                // Aguarda criação das NCs (Promise.allSettled garante que não trava se uma falhar)
+                await Promise.allSettled(ncPromises);
+            }
+            // =====================================================================
+
             onComplete();
 
         } catch (err) {
@@ -169,10 +207,6 @@ const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId
                     <p className="text-sm mb-4">
                         Não há perguntas cadastradas para a fase <strong>{phaseId}</strong> neste Checklist.
                     </p>
-                    <div className="text-xs text-gray-500 font-mono bg-black/30 p-2 rounded inline-block text-left">
-                        Checklist ID: {checklistTemplateId}<br/>
-                        Fase ID: {phaseId}
-                    </div>
                     <div className="mt-6">
                         <button onClick={onComplete} className="text-blue-400 underline hover:text-blue-300">
                             Pular esta Fase (Avançar)
@@ -260,7 +294,7 @@ const InspectionPhase = ({ phaseId, phaseName, inspectionId, checklistTemplateId
                     disabled={saving}
                     className="w-full mt-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-lg shadow-lg transform transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
                 >
-                    {saving ? 'Processando...' : 'Salvar e Avançar'}
+                    {saving ? 'Salvando Resultados e Registrando NCs...' : 'Salvar e Avançar'}
                 </button>
             )}
         </div>
