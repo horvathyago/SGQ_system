@@ -1,83 +1,59 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-
-/**
- * Sidebar com navegação usando react-router
- * Path: src/components/Dashboard/Sidebar.jsx
- */
+import logoCore from "../../assets/logoCore.png"; 
 
 export default function Sidebar() {
   const navigate = useNavigate();
 
-  // Função para determinar as classes de estilo
   const navClass = ({ isActive }) =>
-    `w-full text-left px-3 py-2 rounded-lg transition-colors duration-150 block ${
-      isActive 
-        ? "bg-white/5 text-red-200 font-medium border-l-2 border-red-500" 
-        : "hover:bg-white/3 text-gray-300 hover:text-white"
+    `group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+      isActive
+        ? "bg-indigo-500/10 text-indigo-400 border-l-[3px] border-indigo-500"
+        : "text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-l-[3px] border-transparent"
     }`;
 
+  const SectionLabel = ({ children }) => (
+    <div className="px-4 mt-6 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+      {children}
+    </div>
+  );
+
   return (
-    <aside className="w-64 bg-[#071018] rounded-xl p-5 mr-6 border border-white/5 shadow-sm relative z-10 flex flex-col h-[calc(100vh-40px)]">
-      
-      {/* 🚀 Cabeçalho / Logo SGQ */}
-      <div className="flex items-center gap-3 mb-8 px-2">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-900 to-gray-900 flex items-center justify-center text-red-400 font-bold border border-red-900/50 shadow-lg">
-          SGQ
+    <aside className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-50">
+      {/* 🚀 Brand Header */}
+      <div className="h-16 flex items-center px-6 border-b border-slate-800/50">
+        <div className="w-8 h-8 mr-3 flex items-center justify-center">
+             <img src={logoCore} alt="QualityCore" className="w-full h-full object-contain" />
         </div>
         <div>
-          <div className="text-white font-bold tracking-wide">SGQ PRO</div>
-          <div className="text-xs text-gray-500 uppercase">Qualidade Integrada</div>
+          <h1 className="text-slate-100 font-bold text-lg tracking-tight leading-none">QualityCore</h1>
+          <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Enterprise OS</span>
         </div>
       </div>
 
-      {/* 🔗 Navegação Principal */}
-      <nav className="space-y-1 flex-1">
-        <NavLink to="/dashboard" className={navClass}>
-          Dashboard
-        </NavLink>
+      {/* 🔗 Navigation */}
+      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar">
+        <SectionLabel>Visão Geral</SectionLabel>
+        <NavLink to="/dashboard" className={navClass}>Dashboard</NavLink>
 
-        <div className="pt-4 pb-1 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          Operacional
-        </div>
+        <SectionLabel>Operações de Qualidade</SectionLabel>
+        <NavLink to="/inspection" className={navClass}>Nova Inspeção</NavLink>
+        <NavLink to="/nonconformities" className={navClass}>Não Conformidades</NavLink>
+        <NavLink to="/pecas" className={navClass}>Gestão de Itens</NavLink>
 
-        <NavLink to="/inspection" className={navClass}>
-          Nova Inspeção
-        </NavLink>
-
-        {/* ✅ Link Confirmado para a Rota criada no App.jsx */}
-        <NavLink to="/nonconformities" className={navClass}>
-          Não Conformidades
-        </NavLink>
-
-        <NavLink to="/pecas" className={navClass}>
-          Gestão de Itens
-        </NavLink>
-
-        <div className="pt-4 pb-1 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          Controle
-        </div>
-
-        <NavLink to="/calibration" className={navClass}>
-          Calibração
-        </NavLink>
-
-        <NavLink to="/templates" className={navClass}>
-          Templates de Checklist
-        </NavLink>
-
-        <NavLink to="/reports" className={navClass}>
-          Relatórios & KPIs
-        </NavLink>
+        <SectionLabel>Controle & Auditoria</SectionLabel>
+        <NavLink to="/calibration" className={navClass}>Calibração</NavLink>
+        <NavLink to="/templates" className={navClass}>Templates</NavLink>
+        <NavLink to="/reports" className={navClass}>Relatórios</NavLink>
       </nav>
 
-      {/* 🔙 Rodapé */}
-      <div className="mt-auto border-t border-white/5 pt-4">
+      {/* 🔙 Footer */}
+      <div className="p-4 border-t border-slate-800">
         <button
-          onClick={() => navigate("/dashboard")}
-          className="w-full text-left px-3 py-2 rounded-lg bg-transparent text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+          onClick={() => navigate("/logout")} // Ajuste lógico se houver rota de logout
+          className="flex items-center w-full px-4 py-2 text-sm text-slate-500 hover:text-slate-300 transition-colors"
         >
-          <span>←</span> Voltar ao Início
+          <span className="mr-2">←</span> Sair do Sistema
         </button>
       </div>
     </aside>
