@@ -1,19 +1,40 @@
-// src/components/NonConformity/NcList.jsx
 import React from 'react';
 
-const NcList = ({ data, onEdit, onDelete }) => {
+// Adicionei a prop 'isFiltered' para saber qual mensagem mostrar
+const NcList = ({ data, onEdit, onDelete, isFiltered = false }) => {
+    
+    // Caso de Lista Vazia
     if (!data || data.length === 0) {
         return (
-            <div className="p-12 text-center flex flex-col items-center justify-center opacity-60">
-                <svg className="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-slate-400 font-medium">Nenhuma não conformidade registrada.</p>
+            <div className="p-12 text-center flex flex-col items-center justify-center min-h-[300px]">
+                <div className="bg-slate-800/50 p-4 rounded-full mb-4">
+                    <svg className="w-10 h-10 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                </div>
+                
+                {isFiltered ? (
+                    // Mensagem específica quando o filtro não retorna nada
+                    <>
+                        <h3 className="text-slate-300 font-bold text-lg mb-1">Nenhum resultado encontrado</h3>
+                        <p className="text-slate-500 text-sm max-w-xs mx-auto">
+                            Não existem não conformidades com o status selecionado. Tente mudar o filtro para "Todas".
+                        </p>
+                    </>
+                ) : (
+                    // Mensagem padrão quando o banco está vazio
+                    <>
+                        <h3 className="text-slate-300 font-bold text-lg mb-1">Tudo certo por aqui</h3>
+                        <p className="text-slate-500 text-sm">
+                            Nenhuma não conformidade registrada no sistema.
+                        </p>
+                    </>
+                )}
             </div>
         );
     }
 
-    // Helper para cores de severidade (Estilo Badge Sutil)
+    // Helper para cores de severidade
     const getSeverityStyle = (level) => {
         const lvl = String(level).toLowerCase();
         if (lvl === 'critical') return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
@@ -27,6 +48,17 @@ const NcList = ({ data, onEdit, onDelete }) => {
         if (s === 'open') return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
         if (s === 'closed') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
         return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'; // Investigating / Implementation
+    };
+
+    // Tradução visual dos Status
+    const translateStatus = (status) => {
+        const map = {
+            'Open': 'Aberta',
+            'Investigating': 'Em Análise',
+            'Implementation': 'Implementação',
+            'Closed': 'Encerrada'
+        };
+        return map[status] || status;
     };
 
     return (
@@ -46,7 +78,7 @@ const NcList = ({ data, onEdit, onDelete }) => {
                     {data.map((row) => (
                         <tr key={row.id} className="hover:bg-slate-800/30 transition-colors group">
                             <td className="p-4">
-                                <div className="font-mono text-xs text-slate-500 mb-1.5">#{row.id.substring(0, 8)}</div>
+                                <div className="font-mono text-xs text-slate-500 mb-1.5">#{String(row.id).substring(0, 8)}</div>
                                 <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${getSeverityStyle(row.severity)}`}>
                                     {row.severity || 'LOW'}
                                 </span>
@@ -77,7 +109,7 @@ const NcList = ({ data, onEdit, onDelete }) => {
                             </td>
                             <td className="p-4">
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide ${getStatusStyle(row.status)}`}>
-                                    {row.status === 'Open' ? 'Aberta' : row.status}
+                                    {translateStatus(row.status)}
                                 </span>
                             </td>
                             <td className="p-4 text-xs text-slate-400">

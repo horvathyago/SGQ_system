@@ -1,6 +1,5 @@
-// src/pages/NonConformityPage.jsx
 import React, { useEffect, useState } from 'react';
-import Header from '../components/Dashboard/Header'; 
+import Header from '../components/Dashboard/Header'; // Ajuste imports se necessário
 import Sidebar from '../components/Dashboard/Sidebar';
 import NonConformityService from '../services/NonConformityService';
 import NcList from '../components/NonConformity/NcList';
@@ -9,9 +8,12 @@ import NcFormModal from '../components/NonConformity/NcFormModal';
 export default function NonConformityPage() {
     const [ncs, setNcs] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // 1. Estado para controlar o filtro selecionado
+    const [statusFilter, setStatusFilter] = useState('all');
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentNc, setCurrentNc] = useState(null); 
-    const [filters, setFilters] = useState({ period: '30d' });
 
     const loadData = async () => {
         setLoading(true);
@@ -28,6 +30,17 @@ export default function NonConformityPage() {
     useEffect(() => {
         loadData();
     }, []);
+
+    // 2. Lógica de Filtragem no Frontend
+    const filteredList = ncs.filter((item) => {
+        if (statusFilter === 'all') return true;
+        
+        // Normaliza para garantir comparação correta (caso venha minúsculo do banco)
+        const statusItem = String(item.status).toLowerCase();
+        const filterValue = statusFilter.toLowerCase();
+        
+        return statusItem === filterValue;
+    });
 
     const handleAddNew = () => {
         setCurrentNc(null);
@@ -90,19 +103,25 @@ export default function NonConformityPage() {
                         </div>
                     </header>
 
-                    {/* Área de Filtros / Toolbar Rápida */}
+                    {/* Área de Filtros */}
                     <div className="bg-slate-900 border border-slate-800 rounded-t-xl p-4 flex items-center justify-between">
                          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium uppercase tracking-wider">
-                             <span>Status:</span>
-                             <select className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-300 focus:border-indigo-500">
-                                 <option>Todos</option>
-                                 <option>Abertos</option>
-                                 <option>Em Análise</option>
-                                 <option>Encerrados</option>
+                             <span>Filtrar por Status:</span>
+                             {/* 3. Select conectado ao estado */}
+                             <select 
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-slate-300 focus:border-indigo-500 outline-none"
+                             >
+                                 <option value="all">Todas</option>
+                                 <option value="Open">Abertos</option>
+                                 <option value="Investigating">Em Análise</option>
+                                 <option value="Implementation">Em Implementação</option>
+                                 <option value="Closed">Encerrados</option>
                              </select>
                          </div>
                          <div className="text-xs text-slate-500">
-                             Total: <span className="text-white font-bold">{ncs.length}</span> registros
+                             Exibindo: <span className="text-white font-bold">{filteredList.length}</span> registros
                          </div>
                     </div>
 
@@ -115,9 +134,10 @@ export default function NonConformityPage() {
                              </div>
                         ) : (
                             <NcList 
-                                data={ncs} 
+                                data={filteredList} // Passa a lista já filtrada
                                 onEdit={handleEdit} 
-                                onDelete={handleDelete} 
+                                onDelete={handleDelete}
+                                isFiltered={statusFilter !== 'all'} // Avisa se tem filtro ativo
                             />
                         )}
                     </div>
