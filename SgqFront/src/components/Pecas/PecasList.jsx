@@ -1,23 +1,20 @@
-// src/components/Pecas/PecasList.jsx
 import React from "react";
 
-export default function PecasList({ data = [], loading = false, onEdit = () => {}, onDelete = () => {} }) {
+export default function PecasList({ data = [], loading = false, onEdit, onDelete }) {
+  
   if (loading) {
     return (
       <div className="p-12 text-center">
         <div className="inline-block w-8 h-8 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-500 text-sm font-medium">Carregando catálogo...</p>
+        <p className="text-slate-500 text-sm">Carregando catálogo...</p>
       </div>
     );
   }
 
-  if (!Array.isArray(data) || data.length === 0) {
+  if (!data || data.length === 0) {
     return (
-      <div className="p-12 text-center flex flex-col items-center justify-center opacity-60">
-        <svg className="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-        </svg>
-        <p className="text-slate-400 font-medium">Nenhum item encontrado com os filtros atuais.</p>
+      <div className="p-12 text-center text-slate-500">
+        <p>Nenhum item encontrado.</p>
       </div>
     );
   }
@@ -26,51 +23,55 @@ export default function PecasList({ data = [], loading = false, onEdit = () => {
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="bg-slate-950/50 border-b border-slate-800">
-            <th className="py-4 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Código</th>
-            <th className="py-4 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Título / Descrição</th>
-            <th className="py-4 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Peso (kg)</th>
-            <th className="py-4 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-            <th className="py-4 px-6 text-right text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ações</th>
+          <tr className="bg-slate-950/50 border-b border-slate-800 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+            <th className="py-4 px-6">Código</th>
+            <th className="py-4 px-6">Título / Descrição</th>
+            <th className="py-4 px-6">Peso</th>
+            <th className="py-4 px-6">Status</th>
+            <th className="py-4 px-6 text-right">Ações</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/50">
+        <tbody className="divide-y divide-slate-800/50 text-sm text-slate-300">
           {data.map((item, index) => {
-            const isActive = item.status === "active";
+            // CORREÇÃO AQUI: Prioriza 'item.titulo' conforme seu banco de dados
+            const id = item.id;
+            const code = item.code || item.codigo || "S/COD";
+            const title = item.titulo || item.title || "Sem Título"; 
+            const desc = item.description || item.descricao || "—";
+            const weight = item.weight || item.peso || 0;
+            
+            // Verifica status (aceita 'active', 1 ou true)
+            const status = item.status ?? item.ativo ?? 1;
+            const isActive = (status === 'active' || status === true || status === 1);
+
             return (
-              <tr key={item.id || index} className="group hover:bg-slate-800/30 transition-colors">
-                <td className="py-4 px-6">
-                    <span className="font-mono text-sm text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20">
-                        {item.code || "N/A"}
-                    </span>
+              <tr key={id || index} className="hover:bg-slate-800/30 transition-colors">
+                <td className="py-4 px-6 font-mono text-indigo-400">
+                    {code}
                 </td>
                 <td className="py-4 px-6">
-                    <div className="text-sm font-semibold text-slate-200">{item.title || "Sem título"}</div>
-                    <div className="text-xs text-slate-500 mt-0.5 max-w-md truncate">{item.description || "—"}</div>
+                    <div className="font-semibold text-white">{title}</div>
+                    <div className="text-xs text-slate-500 truncate max-w-xs">{desc}</div>
                 </td>
-                <td className="py-4 px-6 text-sm text-slate-400 font-mono">
-                    {item.weight ? Number(item.weight).toFixed(2) : "-"}
+                <td className="py-4 px-6 font-mono">
+                    {Number(weight).toFixed(2)} kg
                 </td>
                 <td className="py-4 px-6">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                        isActive 
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                        : "bg-slate-700/30 text-slate-400 border-slate-600/30"
-                    }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isActive ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
-                        {isActive ? "Ativo" : "Inativo"}
-                    </span>
+                   {isActive 
+                     ? <span className="text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded text-xs">Ativo</span>
+                     : <span className="text-slate-400 bg-slate-700/30 px-2 py-1 rounded text-xs">Inativo</span>
+                   }
                 </td>
                 <td className="py-4 px-6 text-right space-x-2">
-                  <button
-                    onClick={() => onEdit(item)}
+                  <button 
+                    onClick={() => onEdit(item)} 
                     className="text-slate-400 hover:text-indigo-400 transition-colors p-1.5 hover:bg-slate-800 rounded"
                     title="Editar"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                   </button>
-                  <button
-                    onClick={() => onDelete(item.id ?? item.code)}
+                  <button 
+                    onClick={() => onDelete(id)} 
                     className="text-slate-400 hover:text-rose-400 transition-colors p-1.5 hover:bg-slate-800 rounded"
                     title="Remover"
                   >
