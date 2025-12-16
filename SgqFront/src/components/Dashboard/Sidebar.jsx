@@ -1,9 +1,26 @@
 import React from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom"; // Removido useNavigate pois usaremos window.location
 import logoCore from "../../assets/logoCore.png"; 
+import UserAccountService from "../../services/UserAccountService";
 
 export default function Sidebar() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // Não é mais necessário para o logout forçado
+
+  const handleLogout = async () => {
+    try{
+      await UserAccountService.logout(); 
+      
+      // CORREÇÃO: Força o recarregamento da página para limpar o estado de memória do React.
+      // Isso evita que verificações de rota (AuthGuard) te devolvam para o dashboard.
+      window.location.href = "/"; 
+
+    } catch (erro){
+      console.error("Erro ao fazer logout:", erro);
+      
+      // Mesmo em caso de erro, forçamos a saída
+      window.location.href = "/"; 
+    }
+  };
 
   const navClass = ({ isActive }) =>
     `group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
@@ -50,7 +67,7 @@ export default function Sidebar() {
       {/* 🔙 Footer */}
       <div className="p-4 border-t border-slate-800">
         <button
-          onClick={() => navigate("/logout")} // Ajuste lógico se houver rota de logout
+          onClick={handleLogout} 
           className="flex items-center w-full px-4 py-2 text-sm text-slate-500 hover:text-slate-300 transition-colors"
         >
           <span className="mr-2">←</span> Sair do Sistema
